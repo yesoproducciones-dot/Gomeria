@@ -1443,8 +1443,15 @@ window.toggleEmpleado=async function(id, activo){
 
 
 window.eliminarCliente=async function(id, nombre){
-  if(!confirm(`¿Eliminar a "${nombre}" y todos sus vehículos? Esta acción no se puede deshacer.`)) return;
-  await db.from('vehiculos').delete().eq('cliente_id',id);
+  if(!confirm(`¿Eliminar a "${nombre}" y todo su historial? Esta acción no se puede deshacer.`)) return;
+  // Obtener vehículos del cliente
+  const vehs=state.vehiculos.filter(v=>v.cliente_id===id).map(v=>v.id);
+  // Obtener órdenes de esos vehículos
+  const ordIds=state.ordenes.filter(o=>vehs.includes(o.vehiculo_id)).map(o=>o.id);
+  // Borrar en cascada
+  for(const oid of ordIds) await db.from('orden_insumos').delete().eq('orden_id',oid);
+  if(ordIds.length) await db.from('ordenes').delete().in('id',ordIds);
+  if(vehs.length) await db.from('vehiculos').delete().in('id',vehs);
   await db.from('clientes').delete().eq('id',id);
   await loadAll(); render();
 };
