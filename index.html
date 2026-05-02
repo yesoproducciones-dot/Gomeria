@@ -467,6 +467,7 @@ function ordenCardHTML(o){
       <div class="row">
         <span style="font-size:12px;color:#888">${o.fecha}${hora?' '+hora:''}</span>
         <button class="btn btn-sm" onclick="showOrdenDetalle('${o.id}')">Ver</button>
+        <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="enviarWhatsApp('${o.id}')">📲</button>
         <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️</button>
         ${sigEstado?`<button class="btn btn-sm btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
       </div>
@@ -1215,44 +1216,6 @@ window.guardarOrden=async function(){
   await loadAll(); closeModal();
 };
 
-// ═══ DETALLE ORDEN ════════════════════════════════════════════
-function showOrdenDetalle(id){
-  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
-  const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
-  const ins=state.ordenInsumos.filter(x=>x.orden_id===id);
-  const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
-  const l=localInfo(o.local);
-  document.getElementById('modal-container').innerHTML=`
-  <div class="modal-overlay" onclick="closeModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
-      <div class="row" style="justify-content:space-between;margin-bottom:14px">
-        <div class="modal-title" style="margin:0">Orden #${id.slice(-4)}</div>
-        ${badgeHTML(o.estado)}
-      </div>
-      <div style="background:${l.color}15;border:1px solid ${l.color}40;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:${l.color};margin-bottom:12px">${l.dot} GOMERÍA J&Y — ${l.full}</div>
-      <div class="grid2" style="margin-bottom:12px">
-        <div><div class="label">Cliente</div><div style="margin-top:2px;font-size:13px">${c?c.nombre:'—'}</div></div>
-        <div><div class="label">Teléfono</div><div style="margin-top:2px;font-size:13px">${c?c.telefono:'—'}</div></div>
-        <div><div class="label">Vehículo</div><div style="margin-top:2px;font-size:13px">${v?`${v.marca} ${v.modelo}`:''}</div></div>
-        <div><div class="label">Patente</div><div style="margin-top:2px"><span class="placa">${v?v.patente:'?'}</span></div></div>
-        <div><div class="label">Fecha</div><div style="margin-top:2px;font-size:13px">${o.fecha}</div></div>
-      </div>
-      <hr class="divider">
-      <div class="label" style="margin-bottom:6px">Servicios</div>
-      ${(o.servicios||[]).length?(o.servicios).map(s=>`<div style="font-size:13px;padding:3px 0">• ${s}</div>`).join(''):'<div style="font-size:12px;color:#888">Sin servicios</div>'}
-      ${ins.length?`<hr class="divider"><div class="label" style="margin-bottom:6px">Insumos</div>${ins.map(i=>{const s=getStock(i.stock_id);return`<div class="order-item-row"><span>${s?s.nombre:'?'}</span><span>${i.cantidad} ${s?s.unidad:'u'}</span></div>`;}).join('')}`:''}
-      ${o.notas?`<hr class="divider"><div class="label">Notas</div><div style="font-size:13px;margin-top:4px">${o.notas}</div>`:''}
-      <hr class="divider">
-      <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
-      <div style="font-size:12px;color:#888;margin-top:4px">${metodoPagoIcon(o.metodo_pago)} ${metodoPagoLabel(o.metodo_pago)}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-        ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
-        <button class="btn" onclick="closeModal()">Cerrar</button>
-      </div>
-    </div>
-  </div>`;
-}
-
 function showOrdenDetalle(id){
   const o=state.ordenes.find(x=>x.id===id); if(!o) return;
   const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
@@ -1285,11 +1248,39 @@ function showOrdenDetalle(id){
       <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
+        <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="enviarWhatsApp('${o.id}')">📲 WhatsApp</button>
         <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="closeModal();showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️ Editar</button>
         <button class="btn" onclick="closeModal()">Cerrar</button>
       </div>
     </div>
   </div>`;
+}
+
+function enviarWhatsApp(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const v=getVehiculo(o.vehiculo_id), c=getCliente(o.vehiculo_id);
+  const l=localInfo(o.local);
+  const emp=getEmpleado(o.empleado_id);
+  const tel=(c?.telefono||'').replace(/\D/g,'');
+  const servicios=(o.servicios||[]).map(s=>`  • ${s}`).join('\n');
+  const msg=
+`🔧 *GOMERÍA J&Y* — ${l.nombre}
+
+Hola ${c?c.nombre:''}! Te compartimos el detalle de tu orden:
+
+🚗 *Vehículo:* ${v?`${v.marca} ${v.modelo}`:'—'} | *Patente:* ${v?v.patente:'—'}
+📅 *Fecha:* ${o.fecha}${o.hora?' — '+o.hora:''}
+
+*Servicios realizados:*
+${servicios||'Sin servicios'}
+
+💰 *Total:* ${formatMoney(o.total)} (${metodoPagoLabel(o.metodo_pago)})
+${o.notas?`\n📝 *Notas:* ${o.notas}`:''}
+
+Gracias por elegirnos! 🙌`;
+
+  const url=`https://wa.me/${tel.startsWith('54')?tel:'54'+tel}?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
 }
 
 // ═══ EDITAR ORDEN (solo dueño) ════════════════════════════════
