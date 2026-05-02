@@ -240,13 +240,14 @@ function showPin(nivel, callback){
   _pinBuf=''; _pinCb=callback; _pinNivel=nivel;
   const titulo = nivel==='dueno' ? '🔐 Acceso exclusivo dueño' : '🔒 Ingresá tu DNI';
   const sub    = nivel==='dueno' ? 'Ingresá el PIN del dueño' : 'Cada empleado ingresa con su número de DNI';
+  const maxDots = nivel==='dueno' ? 4 : 8;
   document.getElementById('pin-container').innerHTML=`
   <div class="pin-overlay">
     <div class="pin-box">
       <div class="pin-title">${titulo}</div>
       <div class="pin-sub">${sub}</div>
       <div class="pin-dots" id="pin-dots-container">
-        ${[0,1,2,3,4,5,6,7].map(i=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
+        ${[...Array(maxDots)].map((_,i)=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
       </div>
       <div class="pin-grid">
         ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
@@ -260,8 +261,9 @@ function showPin(nivel, callback){
 }
 
 window.pinPress=function(val){
+  const maxLen = _pinNivel==='dueno' ? 4 : 8;
   if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
-  if(val===''||_pinBuf.length>=8) return;
+  if(val===''||_pinBuf.length>=maxLen) return;
   _pinBuf+=val; updatePinDots();
   // Intentar validar con delay
   clearTimeout(window._pinTimeout);
@@ -302,11 +304,10 @@ function validarPin(){
 }
 
 function updatePinDots(){
-  // Mostrar dots dinámicamente según largo del DNI ingresado
   const container=document.getElementById('pin-dots-container');
   if(!container) return;
-  const len=Math.max(8,_pinBuf.length);
-  container.innerHTML=[...Array(len)].map((_,i)=>`<div class="pin-dot ${i<_pinBuf.length?'filled':''}" id="pd${i}"></div>`).join('');
+  const maxDots = _pinNivel==='dueno' ? 4 : 8;
+  container.innerHTML=[...Array(maxDots)].map((_,i)=>`<div class="pin-dot ${i<_pinBuf.length?'filled':''}" id="pd${i}"></div>`).join('');
 }
 
 function closePinScreen(){
