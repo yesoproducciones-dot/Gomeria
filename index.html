@@ -333,18 +333,20 @@ function _pinKeyHandler(e){
 async function loadAll(){
   state.loading=true; render();
   try {
-    const [c,v,o,s,oi,em]=await Promise.all([
+    const [c,v,o,s,oi]=await Promise.all([
       db.from('clientes').select('*').order('nombre'),
       db.from('vehiculos').select('*'),
       db.from('ordenes').select('*').order('fecha',{ascending:false}),
       db.from('stock').select('*').order('nombre'),
       db.from('orden_insumos').select('*'),
-      db.from('empleados').select('*').order('nombre'),
     ]);
     if(c.error) throw c.error;
     state.clientes=c.data||[]; state.vehiculos=v.data||[];
     state.ordenes=o.data||[]; state.stock=s.data||[];
-    state.ordenInsumos=oi.data||[]; state.empleados=em.data||[];
+    state.ordenInsumos=oi.data||[];
+    // empleados por separado para no trabar si falla
+    const em = await db.from('empleados').select('*').order('nombre');
+    state.empleados=em.data||[];
     state.error=null;
   } catch(e){ state.error=traducirError(e.message||''); }
   state.loading=false; render();
