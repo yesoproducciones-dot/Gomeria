@@ -204,7 +204,8 @@ let state = {
   searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
   loading:false, error:null,
   pinEmpleadoOk:false, pinDuenoOk:false,
-  empleadoActual:null, // empleado que ingresó con su DNI
+  empleadoActual:null,
+  totalVisible:false,
 };
 
 // ═══ LOCAL ════════════════════════════════════════════════════
@@ -355,18 +356,9 @@ async function loadAll(){
 }
 
 function setTab(t){
-  // Resetear acceso al cambiar de pestaña
   state.pinEmpleadoOk=false;
   state.pinDuenoOk=false;
   state.empleadoActual=null;
-
-  // Pestañas que requieren PIN
-  if(t==='empleados'){
-    state.tab=t;
-    document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
-    showPin('dueno',()=>render());
-    return;
-  }
   state.tab=t;
   document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
   render();
@@ -444,10 +436,11 @@ function renderDashboard(){
   const pendientes=state.ordenes.filter(o=>o.estado!=='entregado'&&o.local===state.localActual);
   const l=localInfo(state.localActual);
 
-  // Desglose por método de pago (solo dueño)
   const efectivo=ordenesLocal.reduce((s,o)=>(!o.metodo_pago||o.metodo_pago==='efectivo')?s+(o.total||0):s,0);
   const transferencia=ordenesLocal.reduce((s,o)=>o.metodo_pago==='transferencia'?s+(o.total||0):s,0);
   const tarjeta=ordenesLocal.reduce((s,o)=>o.metodo_pago==='tarjeta'?s+(o.total||0):s,0);
+
+  const visible=state.totalVisible;
 
   return `
   <div style="margin-bottom:14px">
@@ -457,45 +450,36 @@ function renderDashboard(){
   <div class="stats-grid">
     <div class="stat-card"><div class="stat-num">${activas}</div><div class="stat-lbl">Activas (todos)</div></div>
     <div class="stat-card"><div class="stat-num">${hoyCount}</div><div class="stat-lbl">Hoy en este local</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:15px">${formatMoney(totalMes)}</div><div class="stat-lbl">Total este local</div></div>
+    <div class="stat-card" style="cursor:pointer;position:relative" onclick="toggleTotal()">
+      <div style="position:absolute;top:6px;right:8px;font-size:14px">${visible?'👁️':'🙈'}</div>
+      <div class="stat-num" style="font-size:15px">${visible?formatMoney(totalMes):'••••••'}</div>
+      <div class="stat-lbl">Total este local</div>
+      ${visible&&state.pinDuenoOk?`
+      <div style="margin-top:8px;border-top:1px solid #e8e8e0;padding-top:6px;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💵</span><span>${formatMoney(efectivo)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>📲</span><span>${formatMoney(transferencia)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💳</span><span>${formatMoney(tarjeta)}</span></div>
+        <div style="text-align:center;margin-top:4px"><button class="btn-link" style="font-size:11px" onclick="event.stopPropagation();showDesglosePagos()">Ver todos los locales →</button></div>
+      </div>`:''}
+    </div>
     <div class="stat-card"><div class="stat-num ${stockBajo>0?'stock-low':''}">${stockBajo}</div><div class="stat-lbl">Stock bajo mínimo</div></div>
   </div>
-
-  ${state.pinDuenoOk?`
-  <div class="card" style="margin-bottom:16px;background:#FDD83510;border-color:#FDD835">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:13px;font-weight:700">💰 Desglose por método de pago — ${l.nombre}</div>
-      <span style="font-size:11px;background:#FDD835;padding:2px 8px;border-radius:6px;font-weight:700">Solo dueño</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-      <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e8e8e0">
-        <div style="font-size:16px;margin-bottom:4px">💵</div>
-        <div style="font-size:11px;color:#888;margin-bottom:2px">Efectivo</div>
-        <div style="font-size:15px;font-weight:700">${formatMoney(efectivo)}</div>
-      </div>
-      <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e8e8e0">
-        <div style="font-size:16px;margin-bottom:4px">📲</div>
-        <div style="font-size:11px;color:#888;margin-bottom:2px">Transferencia</div>
-        <div style="font-size:15px;font-weight:700">${formatMoney(transferencia)}</div>
-      </div>
-      <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e8e8e0">
-        <div style="font-size:16px;margin-bottom:4px">💳</div>
-        <div style="font-size:11px;color:#888;margin-bottom:2px">Tarjeta</div>
-        <div style="font-size:15px;font-weight:700">${formatMoney(tarjeta)}</div>
-      </div>
-    </div>
-    <div style="margin-top:8px;text-align:right;font-size:12px;color:#888">
-      Ver desglose de todos los locales: 
-      <button class="btn-link" onclick="showDesglosePagos()">Ver completo</button>
-    </div>
-  </div>`:''}
-
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-size:15px;font-weight:700">Órdenes activas — ${l.nombre}</div>
     <button class="btn btn-primary btn-sm" onclick="showPinOrden(()=>showNuevaOrden())">+ Nueva orden</button>
   </div>
   ${pendientes.length===0?'<div class="empty">No hay órdenes activas en este local</div>':pendientes.map(o=>ordenCardHTML(o)).join('')}`;
 }
+
+window.toggleTotal=function(){
+  state.totalVisible=!state.totalVisible;
+  if(state.totalVisible && !state.pinDuenoOk){
+    showPin('dueno',()=>{ render(); });
+    state.totalVisible=false;
+    return;
+  }
+  render();
+};
 
 function showDesglosePagos(){
   const metodos=['efectivo','transferencia','tarjeta'];
