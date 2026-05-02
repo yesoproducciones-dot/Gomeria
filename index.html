@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gomería J&Y — Sistema</title>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:16px}
@@ -31,6 +32,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
 .badge-proceso{background:#FAEEDA;color:#854F0B}
 .badge-listo{background:#EAF3DE;color:#3B6D11}
 .badge-entregado{background:#F1EFE8;color:#5F5E5A}
+.badge-cancelado{background:#FCEBEB;color:#A32D2D;text-decoration:line-through}
 .local-3619{border-left:3px solid #C0392B}
 .local-3391{border-left:3px solid #2980B9}
 .local-avellaneda{border-left:3px solid #27AE60}
@@ -226,7 +228,7 @@ const LOCALES = {
   'avellaneda': { nombre:'Avellaneda',  full:'Av. Avellaneda 4140', dot:'🟢', color:'#27AE60', cls:'local-avellaneda',selcls:'sel-avellaneda'},
 };
 
-const ESTADOS = ['recibido','en proceso','listo','entregado'];
+const ESTADOS = ['recibido','en proceso','listo','entregado','cancelado'];
 const ESTADO_LABELS = {recibido:'Recibido','en proceso':'En proceso',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
 
 const SERVICIOS_PREDEFINIDOS = [
@@ -453,7 +455,7 @@ function render(){
 function ordenCardHTML(o){
   const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
   const servicios=(o.servicios||[]).join(', ');
-  const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
+  const sigEstado=o.estado==='cancelado'||o.estado==='entregado'?null:ESTADOS[ESTADOS.indexOf(o.estado)+1];
   const l=localInfo(o.local);
   const emp=getEmpleado(o.empleado_id);
   const hora=o.hora||'';
@@ -483,13 +485,13 @@ function ordenCardHTML(o){
 }
 
 function renderDashboard(){
-  const activas=state.ordenes.filter(o=>o.estado!=='entregado').length;
+  const activas=state.ordenes.filter(o=>o.estado!=='entregado'&&o.estado!=='cancelado').length;
   const hoy=new Date().toISOString().slice(0,10);
   const hoyCount=state.ordenes.filter(o=>o.fecha===hoy&&o.local===state.localActual).length;
   const ordenesLocal=state.ordenes.filter(o=>o.local===state.localActual);
   const totalMes=ordenesLocal.reduce((s,o)=>s+(o.total||0),0);
   const stockBajo=state.stock.filter(s=>s.local===state.localActual&&s.cantidad<=s.minimo).length;
-  const pendientes=state.ordenes.filter(o=>o.estado!=='entregado'&&o.local===state.localActual);
+  const pendientes=state.ordenes.filter(o=>o.estado!=='entregado'&&o.estado!=='cancelado'&&o.local===state.localActual);
   const l=localInfo(state.localActual);
 
   const efectivo=ordenesLocal.reduce((s,o)=>(!o.metodo_pago||o.metodo_pago==='efectivo')?s+(o.total||0):s,0);
@@ -1097,6 +1099,11 @@ function showNuevaOrden(){
       </div>
       <div class="form-group">
         <div class="form-label">📷 Foto del vehículo (opcional)</div>
+        <input type="file" accept="image/*" capture="environment" id="m-foto" class="input" style="padding:6px" onchange="previewFoto(this)">
+        <div id="foto-preview" style="margin-top:6px"></div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">📷 Foto del vehículo (opcional)</div>
         <input class="input" type="file" id="m-foto" accept="image/*" capture="environment" style="padding:6px">
         <div id="m-foto-preview" style="margin-top:6px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1195,6 +1202,23 @@ function renderInsumosList(){
       <span>${ins.qty} ${s?s.unidad:'u'} <span style="cursor:pointer;color:#aaa;margin-left:4px" onclick="window._insumosSel.splice(${i},1);renderInsumosList()">×</span></span></div>`;
   }).join('');
 }
+window.previewFoto=function(input){
+  const el=document.getElementById('foto-preview'); if(!el) return;
+  if(!input.files||!input.files[0]){el.innerHTML='';return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    window._fotoBase64=e.target.result;
+    el.innerHTML=`<img src="${e.target.result}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid #e8e8e0">`;
+  };
+  reader.readAsDataURL(input.files[0]);
+};
+
+async function subirFoto(base64){
+  // Guardamos el base64 directamente en la tabla (para imágenes pequeñas)
+  // Si la imagen es muy grande la comprimimos
+  return base64;
+}
+
 window.guardarOrden=async function(){
   const vId=document.getElementById('m-vehiculo')?.value;
   const total=parseFloat(document.getElementById('m-total')?.value)||0;
@@ -1263,12 +1287,14 @@ function showOrdenDetalle(id){
       ${(o.servicios||[]).length?(o.servicios).map(s=>`<div style="font-size:13px;padding:3px 0">• ${s}</div>`).join(''):'<div style="font-size:12px;color:#888">Sin servicios</div>'}
       ${ins.length?`<hr class="divider"><div class="label" style="margin-bottom:6px">Insumos</div>${ins.map(i=>{const s=getStock(i.stock_id);return`<div class="order-item-row"><span>${s?s.nombre:'?'}</span><span>${i.cantidad} ${s?s.unidad:'u'}</span></div>`;}).join('')}`:''}
       ${o.notas?`<hr class="divider"><div class="label">Notas</div><div style="font-size:13px;margin-top:4px">${o.notas}</div>`:''}
+      ${o.foto_url?`<hr class="divider"><div class="label" style="margin-bottom:6px">📷 Foto</div><img src="${o.foto_url}" style="width:100%;border-radius:8px;border:1px solid #e8e8e0;cursor:pointer" onclick="window.open('${o.foto_url}','_blank')">`:''}
       <hr class="divider">
       <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
         ${o.estado!=='cancelado'&&o.estado!=='entregado'?`<button class="btn-danger btn-sm" onclick="showPin('dueno',()=>cancelarOrden('${o.id}'))">✖ Cancelar</button>`:''}
         <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="enviarWhatsApp('${o.id}')">📲 WhatsApp</button>
+        <button class="btn btn-sm" style="background:#E74C3C;border-color:#E74C3C;color:#fff" onclick="exportarOrdenPDF('${o.id}')">🖨️ PDF</button>
         <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="closeModal();showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️ Editar</button>
         <button class="btn" onclick="closeModal()">Cerrar</button>
       </div>
@@ -1283,6 +1309,72 @@ async function cancelarOrden(id){
   const o=state.ordenes.find(x=>x.id===id);
   if(o) o.estado='cancelado';
   closeModal(); render();
+}
+
+function exportarOrdenPDF(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const v=getVehiculo(o.vehiculo_id), c=getCliente(o.vehiculo_id);
+  const l=localInfo(o.local);
+  const emp=getEmpleado(o.empleado_id);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210, M=15;
+  let y=M;
+
+  // Header amarillo
+  doc.setFillColor(253,216,53);
+  doc.rect(0,0,W,35,'F');
+  doc.setFontSize(20); doc.setFont('helvetica','bold');
+  doc.setTextColor(26,26,26);
+  doc.text('GOMERIA J&Y',M,14);
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.setTextColor(192,57,43);
+  doc.text('24 HS.',M,21);
+  doc.setTextColor(50,50,50);
+  doc.text(`${l.full}`,M,27);
+  doc.text('Tel: 15 5829-5801',W-M,14,{align:'right'});
+  doc.setFontSize(11); doc.setFont('helvetica','bold');
+  doc.setTextColor(26,26,26);
+  doc.text(`ORDEN #${id.slice(-4)}`,W-M,22,{align:'right'});
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text(`Fecha: ${o.fecha}${o.hora?' — '+o.hora:''}`,W-M,28,{align:'right'});
+
+  y=42;
+  // Datos cliente
+  doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26);
+  doc.text('DATOS DEL CLIENTE',M+2,y+5);
+  y+=10;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text(`Cliente: ${c?c.nombre:'—'}`,M,y);
+  doc.text(`Tel: ${c?c.telefono:'—'}`,M+80,y);
+  y+=6;
+  doc.text(`Vehículo: ${v?`${v.marca} ${v.modelo}`:'—'}`,M,y);
+  doc.text(`Patente: ${v?v.patente:'—'}`,M+80,y);
+  if(emp){y+=6;doc.text(`Empleado: ${emp.nombre}`,M,y);}
+
+  y+=10;
+  // Servicios
+  doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8);
+  doc.text('SERVICIOS REALIZADOS',M+2,y+5);
+  y+=10;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  (o.servicios||[]).forEach(s=>{doc.text(`• ${s}`,M+2,y);y+=5;});
+  if(o.notas){y+=2;doc.setFont('helvetica','italic');doc.text(`Notas: ${o.notas}`,M,y);y+=5;doc.setFont('helvetica','normal');}
+
+  y+=5;
+  // Total
+  doc.setFillColor(26,26,26); doc.rect(M,y,W-2*M,10,'F');
+  doc.setTextColor(253,216,53); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+  doc.text(`TOTAL: ${formatMoney(o.total)}`,M+2,y+7);
+  doc.setFontSize(9);
+  doc.text(`(${metodoPagoLabel(o.metodo_pago)})`,W-M-2,y+7,{align:'right'});
+
+  doc.setTextColor(150,150,150); doc.setFontSize(7); doc.setFont('helvetica','normal');
+  doc.text('GOMERÍA J&Y · Av. Gaona 3391 / 3619 · Av. Avellaneda 4140 · Tel: 15 5829-5801',W/2,290,{align:'center'});
+
+  doc.save(`orden-${id.slice(-4)}-${c?c.nombre.replace(/\s/g,'-'):'cliente'}.pdf`);
 }
 
 function enviarWhatsApp(id){
@@ -1816,6 +1908,11 @@ function showEditarCliente(id){
         <div class="form-group"><div class="form-label">Patente</div><input class="input" id="ec-pat" placeholder="AB 123 CD"></div>
         <div class="form-group"><div class="form-label">Marca</div><input class="input" id="ec-marca" placeholder="Ford"></div>
         <div class="form-group"><div class="form-label">Modelo</div><input class="input" id="ec-modelo" placeholder="Focus 2020"></div>
+      </div>
+      <hr class="divider">
+      <div class="form-group">
+        <div class="form-label">🔒 Notas internas (solo visible para el equipo)</div>
+        <textarea class="input" id="ec-notas-internas" rows="2" placeholder="Ej: cliente difícil, debe plata, prefiere llamar por la tarde...">${c.notas_internas||''}</textarea>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
         <button class="btn" onclick="closeModal()">Cancelar</button>
