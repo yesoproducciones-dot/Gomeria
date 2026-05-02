@@ -257,6 +257,7 @@ function showPin(nivel, callback){
       <button class="btn" style="width:100%;margin-top:12px" onclick="closePinScreen()">Cancelar</button>
     </div>
   </div>`;
+  document.addEventListener('keydown', _pinKeyHandler);
 }
 
 window.pinPress=function(val){
@@ -280,7 +281,16 @@ window.pinPress=function(val){
   }
 };
 function updatePinDots(){ for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);if(d)d.classList.toggle('filled',i<_pinBuf.length);} }
-function closePinScreen(){ document.getElementById('pin-container').innerHTML=''; }
+function closePinScreen(){ 
+  document.getElementById('pin-container').innerHTML='';
+  document.removeEventListener('keydown', _pinKeyHandler);
+}
+
+function _pinKeyHandler(e){
+  if(e.key>='0'&&e.key<='9') pinPress(e.key);
+  else if(e.key==='Backspace') pinPress('⌫');
+  else if(e.key==='Escape') closePinScreen();
+}
 
 // ═══ DATOS ════════════════════════════════════════════════════
 async function loadAll(){
@@ -385,7 +395,7 @@ function renderDashboard(){
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-size:15px;font-weight:700">Órdenes activas — ${l.nombre}</div>
-    <button class="btn btn-primary btn-sm" onclick="showPin('empleado',()=>showNuevaOrden())">+ Nueva orden</button>
+    <button class="btn btn-primary btn-sm" onclick="showPinOrden(()=>showNuevaOrden())">+ Nueva orden</button>
   </div>
   ${pendientes.length===0?'<div class="empty">No hay órdenes activas en este local</div>':pendientes.map(o=>ordenCardHTML(o)).join('')}`;
 }
@@ -401,7 +411,7 @@ function renderOrdenes(){
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div style="font-size:15px;font-weight:700">Todas las órdenes</div>
-    <button class="btn btn-primary btn-sm" onclick="showPin('empleado',()=>showNuevaOrden())">+ Nueva orden</button>
+    <button class="btn btn-primary btn-sm" onclick="showPinOrden(()=>showNuevaOrden())">+ Nueva orden</button>
   </div>
   <div class="search-bar">
     <input class="input" placeholder="Buscar por patente o nombre..." value="${state.searchOrden}" oninput="state.searchOrden=this.value;render()">
@@ -657,7 +667,10 @@ window.guardarCambiosStock=async function(){
   closeModal();
 };
 
-// ═══ AVANZAR ESTADO ═══════════════════════════════════════════
+function showPinOrden(callback){
+  if(state.pinEmpleadoOk||state.pinDuenoOk){ callback(); return; }
+  showPin('empleado', callback);
+}
 async function avanzarEstado(id){
   const o=state.ordenes.find(x=>x.id===id); if(!o) return;
   const idx=ESTADOS.indexOf(o.estado);
@@ -722,6 +735,12 @@ function showNuevaOrden(){
             <option value="">— Sin asignar —</option>
             ${state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('')}
           </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="form-group">
+          <div class="form-label">Fecha</div>
+          <input class="input" type="date" id="m-fecha" value="${new Date().toISOString().slice(0,10)}">
         </div>
         <div class="form-group">
           <div class="form-label">Hora</div>
@@ -838,6 +857,7 @@ window.guardarOrden=async function(){
   const notas=document.getElementById('m-notas')?.value||'';
   const empleadoId=document.getElementById('m-empleado')?.value||null;
   const hora=document.getElementById('m-hora')?.value||new Date().toTimeString().slice(0,5);
+  const fecha=document.getElementById('m-fecha')?.value||new Date().toISOString().slice(0,10);
   const errEl=document.getElementById('orden-error');
   if(!vId||vId===''){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná un vehículo válido</div>';return;}
   if(window._serviciosSel.length===0){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná al menos un servicio</div>';return;}
@@ -845,7 +865,7 @@ window.guardarOrden=async function(){
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
   const {data:orden,error}=await db.from('ordenes').insert({
     vehiculo_id:vId, estado:'recibido', servicios:window._serviciosSel,
-    total, notas, fecha:new Date().toISOString().slice(0,10),
+    total, notas, fecha,
     local:state.localActual,
     empleado_id:empleadoId||null,
     hora,
