@@ -149,6 +149,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
     <button onclick="setTab('clientes')">👥 Clientes</button>
     <button onclick="setTab('stock')">📦 Stock</button>
     <button onclick="showPin('dueno',()=>setTab('empleados'))">👷 Empleados</button>
+    <button onclick="showPin('dueno',()=>setTab('gastos'))">💸 Gastos</button>
   </div>
   <div class="local-badge" onclick="showCambiarLocal()">
     <span id="topbar-local-dot">🔴</span>
@@ -200,7 +201,7 @@ function traducirError(msg=''){
 
 let state = {
   tab:'dashboard', localActual:'gaona3619',
-  clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[], empleados:[],
+  clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[], empleados:[], gastos:[],
   searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
   loading:false, error:null,
   pinEmpleadoOk:false, pinDuenoOk:false,
@@ -350,6 +351,8 @@ async function loadAll(){
     // empleados por separado para no trabar si falla
     const em = await db.from('empleados').select('*').order('nombre');
     state.empleados=em.data||[];
+    const ga = await db.from('gastos').select('*').order('fecha',{ascending:false});
+    state.gastos=ga.data||[];
     state.error=null;
   } catch(e){ state.error=traducirError(e.message||''); }
   state.loading=false; render();
@@ -360,7 +363,7 @@ function setTab(t){
   state.pinDuenoOk=false;
   state.empleadoActual=null;
   state.tab=t;
-  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
+  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados','gastos'][i]===t));
   render();
 }
 
@@ -389,7 +392,7 @@ function render(){
   const mc=document.getElementById('main-content'); if(!mc) return;
   if(state.loading){mc.innerHTML='<div class="loading">Cargando...</div>';return;}
   if(state.error){mc.innerHTML=`<div class="error-msg">${state.error}</div><button class="btn" onclick="loadAll()" style="margin-top:8px">Reintentar</button>`;return;}
-  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock,empleados:renderEmpleados};
+  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock,empleados:renderEmpleados,gastos:renderGastos};
   mc.innerHTML=(map[state.tab]||renderDashboard)();
   if(state.tab==='stock') renderStockItems();
 }
@@ -439,6 +442,8 @@ function renderDashboard(){
   const efectivo=ordenesLocal.reduce((s,o)=>(!o.metodo_pago||o.metodo_pago==='efectivo')?s+(o.total||0):s,0);
   const transferencia=ordenesLocal.reduce((s,o)=>o.metodo_pago==='transferencia'?s+(o.total||0):s,0);
   const tarjeta=ordenesLocal.reduce((s,o)=>o.metodo_pago==='tarjeta'?s+(o.total||0):s,0);
+  const totalGastos=state.gastos.filter(g=>g.local===state.localActual).reduce((s,g)=>s+(g.monto||0),0);
+  const balance=totalMes-totalGastos;
 
   const visible=state.totalVisible;
 
@@ -456,9 +461,11 @@ function renderDashboard(){
       <div class="stat-lbl">Total este local</div>
       ${visible&&state.pinDuenoOk?`
       <div style="margin-top:8px;border-top:1px solid #e8e8e0;padding-top:6px;display:flex;flex-direction:column;gap:3px">
-        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💵</span><span>${formatMoney(efectivo)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px"><span>📲</span><span>${formatMoney(transferencia)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💳</span><span>${formatMoney(tarjeta)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💵 Efectivo</span><span>${formatMoney(efectivo)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>📲 Transfer.</span><span>${formatMoney(transferencia)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span>💳 Tarjeta</span><span>${formatMoney(tarjeta)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#C0392B;border-top:1px solid #f0f0e8;margin-top:3px;padding-top:3px"><span>💸 Gastos</span><span>-${formatMoney(totalGastos)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;border-top:1px solid #e8e8e0;margin-top:3px;padding-top:3px;color:${balance>=0?'#3B6D11':'#C0392B'}"><span>📊 Balance</span><span>${balance>=0?'+':''}${formatMoney(balance)}</span></div>
         <div style="text-align:center;margin-top:4px"><button class="btn-link" style="font-size:11px" onclick="event.stopPropagation();showDesglosePagos()">Ver todos los locales →</button></div>
       </div>`:''}
     </div>
@@ -486,42 +493,51 @@ function showDesglosePagos(){
   const rows=Object.entries(LOCALES).map(([lid,l])=>{
     const ords=state.ordenes.filter(o=>o.local===lid);
     const tots=metodos.map(m=>ords.reduce((s,o)=>(o.metodo_pago===m||(m==='efectivo'&&!o.metodo_pago))?s+(o.total||0):s,0));
-    const total=tots.reduce((a,b)=>a+b,0);
-    return {l,tots,total};
+    const totalIng=tots.reduce((a,b)=>a+b,0);
+    const totalGas=state.gastos.filter(g=>g.local===lid).reduce((s,g)=>s+(g.monto||0),0);
+    return {l,tots,totalIng,totalGas,balance:totalIng-totalGas};
   });
   const grandTotals=metodos.map((_,i)=>rows.reduce((s,r)=>s+r.tots[i],0));
-  const grandTotal=grandTotals.reduce((a,b)=>a+b,0);
+  const grandIng=rows.reduce((s,r)=>s+r.totalIng,0);
+  const grandGas=rows.reduce((s,r)=>s+r.totalGas,0);
+  const grandBalance=grandIng-grandGas;
 
   document.getElementById('modal-container').innerHTML=`
   <div class="modal-overlay" onclick="closeModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="max-width:560px">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:600px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div class="modal-title" style="margin:0">💰 Desglose de pagos — todos los locales</div>
+        <div class="modal-title" style="margin:0">💰 Ingresos, Gastos y Balance</div>
         <span style="font-size:11px;background:#FDD835;padding:2px 8px;border-radius:6px;font-weight:700">Solo dueño</span>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead>
           <tr style="background:#f5f5f0">
             <th style="padding:8px;text-align:left;border-bottom:2px solid #e8e8e0">Local</th>
-            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💵 Efectivo</th>
-            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">📲 Transfer.</th>
-            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💳 Tarjeta</th>
-            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0;font-weight:700">Total</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💵 Efect.</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">📲 Trans.</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💳 Tarj.</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💰 Ingr.</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0">💸 Gasto</th>
+            <th style="padding:8px;text-align:right;border-bottom:2px solid #e8e8e0;font-weight:700">📊 Balance</th>
           </tr>
         </thead>
         <tbody>
-          ${rows.map(({l,tots,total})=>`
+          ${rows.map(({l,tots,totalIng,totalGas,balance})=>`
           <tr style="border-bottom:1px solid #f0f0e8">
             <td style="padding:8px;font-weight:600;color:${l.color}">${l.dot} ${l.nombre}</td>
             ${tots.map(t=>`<td style="padding:8px;text-align:right">${formatMoney(t)}</td>`).join('')}
-            <td style="padding:8px;text-align:right;font-weight:700">${formatMoney(total)}</td>
+            <td style="padding:8px;text-align:right;font-weight:600">${formatMoney(totalIng)}</td>
+            <td style="padding:8px;text-align:right;color:#C0392B">${formatMoney(totalGas)}</td>
+            <td style="padding:8px;text-align:right;font-weight:700;color:${balance>=0?'#3B6D11':'#C0392B'}">${balance>=0?'+':''}${formatMoney(balance)}</td>
           </tr>`).join('')}
         </tbody>
         <tfoot>
           <tr style="background:#1a1a1a;color:#fff">
             <td style="padding:8px;font-weight:700">TOTAL</td>
             ${grandTotals.map(t=>`<td style="padding:8px;text-align:right;font-weight:700">${formatMoney(t)}</td>`).join('')}
-            <td style="padding:8px;text-align:right;font-weight:700;color:#FDD835">${formatMoney(grandTotal)}</td>
+            <td style="padding:8px;text-align:right;font-weight:700">${formatMoney(grandIng)}</td>
+            <td style="padding:8px;text-align:right;color:#F09595;font-weight:700">${formatMoney(grandGas)}</td>
+            <td style="padding:8px;text-align:right;font-weight:700;color:${grandBalance>=0?'#FDD835':'#F09595'}">${grandBalance>=0?'+':''}${formatMoney(grandBalance)}</td>
           </tr>
         </tfoot>
       </table>
@@ -1207,6 +1223,151 @@ window.guardarEdicionOrden=async function(id){
 };
 
 // ═══ EMPLEADOS (solo dueño) ═══════════════════════════════════
+const CATEGORIAS_GASTO = [
+  {id:'repuestos',     label:'Repuestos',            icon:'🔩', detalle:true},
+  {id:'agua',          label:'Servicio — Agua',       icon:'💧', detalle:false},
+  {id:'luz',           label:'Servicio — Luz',        icon:'💡', detalle:false},
+  {id:'abl',           label:'Servicio — ABL',        icon:'🏛️', detalle:false},
+  {id:'gas',           label:'Servicio — Gas',        icon:'🔥', detalle:false},
+  {id:'sueldos',       label:'Sueldos',               icon:'👷', detalle:true},
+  {id:'alquiler',      label:'Alquiler',              icon:'🏠', detalle:false},
+  {id:'vulcanizado',   label:'Vulcanizado proveedor', icon:'🚛', detalle:true},
+  {id:'arreglos',      label:'Arreglos / Roturas',    icon:'🔧', detalle:true},
+  {id:'otro',          label:'Otro',                  icon:'📌', detalle:true},
+];
+
+function getCatGasto(id){ return CATEGORIAS_GASTO.find(c=>c.id===id)||{label:id,icon:'📌'}; }
+
+function renderGastos(){
+  const filtroLocal = state.localActual;
+  const gastosLocal = state.gastos.filter(g=>g.local===filtroLocal);
+  const totalGastos = gastosLocal.reduce((s,g)=>s+(g.monto||0),0);
+  const totalIngresos = state.ordenes.filter(o=>o.local===filtroLocal).reduce((s,o)=>s+(o.total||0),0);
+  const balance = totalIngresos - totalGastos;
+
+  // agrupar por categoría
+  const porCategoria = CATEGORIAS_GASTO.map(cat=>{
+    const items = gastosLocal.filter(g=>g.categoria===cat.id);
+    const total = items.reduce((s,g)=>s+(g.monto||0),0);
+    return {cat, items, total};
+  }).filter(x=>x.items.length>0);
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div>
+      <div style="font-size:15px;font-weight:700">💸 Gastos <span style="font-size:11px;background:#FDD835;padding:2px 8px;border-radius:6px;font-weight:700;margin-left:6px">Solo dueño</span></div>
+      <div style="font-size:12px;color:#888;margin-top:2px">${localInfo(filtroLocal).dot} ${localInfo(filtroLocal).full}</div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="showNuevoGasto()">+ Agregar gasto</button>
+  </div>
+
+  <!-- Resumen balance -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+    <div class="stat-card">
+      <div style="font-size:11px;color:#888;margin-bottom:4px">💰 Ingresos</div>
+      <div style="font-size:16px;font-weight:700;color:#3B6D11">${formatMoney(totalIngresos)}</div>
+    </div>
+    <div class="stat-card">
+      <div style="font-size:11px;color:#888;margin-bottom:4px">💸 Gastos</div>
+      <div style="font-size:16px;font-weight:700;color:#C0392B">${formatMoney(totalGastos)}</div>
+    </div>
+    <div class="stat-card" style="background:${balance>=0?'#EAF3DE':'#FCEBEB'};border-color:${balance>=0?'#C0DD97':'#F09595'}">
+      <div style="font-size:11px;color:#888;margin-bottom:4px">📊 Balance</div>
+      <div style="font-size:16px;font-weight:700;color:${balance>=0?'#3B6D11':'#C0392B'}">${balance>=0?'+':''}${formatMoney(balance)}</div>
+    </div>
+  </div>
+
+  <!-- Gastos por categoría -->
+  ${gastosLocal.length===0?'<div class="empty">No hay gastos registrados para este local</div>':
+    porCategoria.map(({cat,items,total})=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px">${cat.icon} ${cat.label}</div>
+        <div style="font-weight:700;color:#C0392B">${formatMoney(total)}</div>
+      </div>
+      ${items.map(g=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid #f0f0e8;font-size:13px">
+          <div>
+            <div>${g.descripcion||cat.label}</div>
+            <div style="font-size:11px;color:#888">${g.fecha}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-weight:600">${formatMoney(g.monto)}</span>
+            <button class="btn-danger" style="padding:3px 8px;font-size:11px" onclick="showPin('dueno',()=>borrarGasto('${g.id}'))">🗑</button>
+          </div>
+        </div>`).join('')}
+    </div>`).join('')}`;
+}
+
+function showNuevoGasto(){
+  const localOpts=Object.entries(LOCALES).map(([id,l])=>`<option value="${id}" ${id===state.localActual?'selected':''}>${l.dot} ${l.full}</option>`).join('');
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">💸 Agregar gasto</div>
+      <div id="gasto-error"></div>
+      <div class="form-group">
+        <div class="form-label">Local *</div>
+        <select class="select" id="g-local">${localOpts}</select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Categoría *</div>
+        <select class="select" id="g-cat" onchange="onCatChange()">
+          ${CATEGORIAS_GASTO.map(c=>`<option value="${c.id}">${c.icon} ${c.label}</option>`).join('')}
+        </select>
+      </div>
+      <div id="g-detalle-container" class="form-group" style="display:none">
+        <div class="form-label">Detalle</div>
+        <input class="input" id="g-detalle" placeholder="Ej: Cubiertas 185/65 R15 x4">
+      </div>
+      <div class="grid2">
+        <div class="form-group">
+          <div class="form-label">Monto ($) *</div>
+          <input class="input" type="number" id="g-monto" placeholder="Ej: 5000">
+        </div>
+        <div class="form-group">
+          <div class="form-label">Fecha</div>
+          <input class="input" type="date" id="g-fecha" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-gasto" onclick="guardarGasto()">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+  onCatChange();
+}
+
+window.onCatChange=function(){
+  const cat=CATEGORIAS_GASTO.find(c=>c.id===document.getElementById('g-cat')?.value);
+  const cont=document.getElementById('g-detalle-container');
+  if(cont) cont.style.display=cat&&cat.detalle?'flex':'none';
+};
+
+window.guardarGasto=async function(){
+  const local=document.getElementById('g-local')?.value;
+  const categoria=document.getElementById('g-cat')?.value;
+  const detalle=document.getElementById('g-detalle')?.value.trim()||'';
+  const monto=parseFloat(document.getElementById('g-monto')?.value)||0;
+  const fecha=document.getElementById('g-fecha')?.value||new Date().toISOString().slice(0,10);
+  const cat=getCatGasto(categoria);
+  const descripcion=detalle||(cat?cat.label:'');
+  const errEl=document.getElementById('gasto-error');
+  if(!monto){if(errEl)errEl.innerHTML='<div class="error-msg">El monto es obligatorio</div>';return;}
+  const btn=document.getElementById('btn-guardar-gasto');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {error}=await db.from('gastos').insert({local,categoria,descripcion,monto,fecha});
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+  await loadAll(); closeModal();
+};
+
+window.borrarGasto=async function(id){
+  if(!confirm('¿Eliminar este gasto?')) return;
+  await db.from('gastos').delete().eq('id',id);
+  await loadAll(); render();
+};
+
 function renderEmpleados(){
   const activos=state.empleados.filter(e=>e.activo);
   const inactivos=state.empleados.filter(e=>!e.activo);
