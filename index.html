@@ -265,16 +265,23 @@ window.pinPress=function(val){
   if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
   if(val===''||_pinBuf.length>=maxLen) return;
   _pinBuf+=val; updatePinDots();
-  // Intentar validar con delay
-  clearTimeout(window._pinTimeout);
-  const minLen = _pinNivel==='dueno' ? 4 : 6;
-  if(_pinBuf.length >= minLen) {
-    window._pinTimeout = setTimeout(()=>{ validarPin(); }, 600);
+  // Validar automáticamente al completar
+  const maxLen = _pinNivel==='dueno' ? 4 : 8;
+  if(_pinBuf.length===maxLen){
+    clearTimeout(window._pinTimeout);
+    window._pinTimeout = setTimeout(()=>{ validarPin(); }, 200);
+  } else {
+    clearTimeout(window._pinTimeout);
+    const minLen = _pinNivel==='dueno' ? 4 : 6;
+    if(_pinBuf.length >= minLen) {
+      window._pinTimeout = setTimeout(()=>{ validarPin(); }, 800);
+    }
   }
 };
 
 function validarPin(){
-  if(_pinBuf.length < 6) return; // DNI tiene al menos 6 dígitos
+  const minLen = _pinNivel==='dueno' ? 4 : 6;
+  if(_pinBuf.length < minLen) return;
   const correcto_dueno = _pinBuf === PIN_DUENO;
   const empleadoMatch = _pinNivel==='empleado'
     ? state.empleados.find(e=>e.activo && e.dni && e.dni===_pinBuf)
@@ -319,7 +326,7 @@ function _pinKeyHandler(e){
   if(e.key>='0'&&e.key<='9') pinPress(e.key);
   else if(e.key==='Backspace') pinPress('⌫');
   else if(e.key==='Escape') closePinScreen();
-  else if(e.key==='Enter') validarPin();
+  else if(e.key==='Enter'){ clearTimeout(window._pinTimeout); validarPin(); }
 }
 
 // ═══ DATOS ════════════════════════════════════════════════════
