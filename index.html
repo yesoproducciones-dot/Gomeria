@@ -153,7 +153,6 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
     <span style="color:#666">▾</span>
   </div>
 </div>
-
 <div class="content" id="main-content"><div class="loading">Conectando...</div></div>
 <div id="modal-container"></div>
 <div id="pin-container"></div>
@@ -202,6 +201,7 @@ let state = {
   searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
   loading:false, error:null,
   pinEmpleadoOk:false, pinDuenoOk:false,
+  empleadoActual:null, // empleado que ingresó con su DNI
 };
 
 // ═══ LOCAL ════════════════════════════════════════════════════
@@ -235,19 +235,18 @@ function showCambiarLocal(){
 let _pinBuf='', _pinCb=null, _pinNivel='empleado';
 
 function showPin(nivel, callback){
-  // nivel: 'empleado' | 'dueno'
   if(nivel==='empleado' && state.pinEmpleadoOk){ callback(); return; }
   if(nivel==='dueno'    && state.pinDuenoOk)   { callback(); return; }
   _pinBuf=''; _pinCb=callback; _pinNivel=nivel;
-  const titulo = nivel==='dueno' ? '🔐 Acceso exclusivo dueño' : '🔒 Zona restringida';
-  const sub    = nivel==='dueno' ? 'Ingresá el PIN del dueño para editar el stock' : 'Ingresá el PIN para continuar';
+  const titulo = nivel==='dueno' ? '🔐 Acceso exclusivo dueño' : '🔒 Ingresá tu DNI';
+  const sub    = nivel==='dueno' ? 'Ingresá el PIN del dueño' : 'Cada empleado ingresa con su número de DNI';
   document.getElementById('pin-container').innerHTML=`
   <div class="pin-overlay">
     <div class="pin-box">
       <div class="pin-title">${titulo}</div>
       <div class="pin-sub">${sub}</div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
+      <div class="pin-dots" id="pin-dots-container">
+        ${[0,1,2,3,4,5,6,7].map(i=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
       </div>
       <div class="pin-grid">
         ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
@@ -262,26 +261,52 @@ function showPin(nivel, callback){
 
 window.pinPress=function(val){
   if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
-  if(val===''||_pinBuf.length>=4) return;
+  if(val===''||_pinBuf.length>=8) return;
   _pinBuf+=val; updatePinDots();
-  if(_pinBuf.length===4){
-    setTimeout(()=>{
-      const correcto = _pinNivel==='dueno' ? PIN_DUENO : PIN_EMPLEADO;
-      if(_pinBuf===correcto){
-        if(_pinNivel==='dueno')    state.pinDuenoOk=true;
-        if(_pinNivel==='empleado') state.pinEmpleadoOk=true;
-        closePinScreen();
-        if(_pinCb) _pinCb();
-      } else {
-        _pinBuf=''; updatePinDots();
-        const el=document.getElementById('pin-error');
-        if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
-      }
-    },200);
-  }
+  // Intentar validar con delay solo si tiene al menos 6 dígitos (DNI mínimo)
+  clearTimeout(window._pinTimeout);
+  window._pinTimeout = setTimeout(()=>{ validarPin(); }, 600);
 };
-function updatePinDots(){ for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);if(d)d.classList.toggle('filled',i<_pinBuf.length);} }
-function closePinScreen(){ 
+
+function validarPin(){
+  if(_pinBuf.length < 6) return; // DNI tiene al menos 6 dígitos
+  const correcto_dueno = _pinBuf === PIN_DUENO;
+  const empleadoMatch = _pinNivel==='empleado'
+    ? state.empleados.find(e=>e.activo && e.dni && e.dni===_pinBuf)
+    : null;
+
+  if(_pinNivel==='dueno' && correcto_dueno){
+    state.pinDuenoOk=true;
+    closePinScreen();
+    if(_pinCb) _pinCb();
+  } else if(_pinNivel==='empleado' && empleadoMatch){
+    state.pinEmpleadoOk=true;
+    state.empleadoActual=empleadoMatch;
+    closePinScreen();
+    if(_pinCb) _pinCb();
+  } else if(_pinNivel==='empleado' && correcto_dueno){
+    // El dueño también puede entrar como empleado
+    state.pinEmpleadoOk=true;
+    state.pinDuenoOk=true;
+    state.empleadoActual=null;
+    closePinScreen();
+    if(_pinCb) _pinCb();
+  } else {
+    _pinBuf=''; updatePinDots();
+    const el=document.getElementById('pin-error');
+    if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
+  }
+}
+
+function updatePinDots(){
+  // Mostrar dots dinámicamente según largo del DNI ingresado
+  const container=document.getElementById('pin-dots-container');
+  if(!container) return;
+  const len=Math.max(8,_pinBuf.length);
+  container.innerHTML=[...Array(len)].map((_,i)=>`<div class="pin-dot ${i<_pinBuf.length?'filled':''}" id="pd${i}"></div>`).join('');
+}
+
+function closePinScreen(){
   document.getElementById('pin-container').innerHTML='';
   document.removeEventListener('keydown', _pinKeyHandler);
 }
@@ -290,6 +315,7 @@ function _pinKeyHandler(e){
   if(e.key>='0'&&e.key<='9') pinPress(e.key);
   else if(e.key==='Backspace') pinPress('⌫');
   else if(e.key==='Escape') closePinScreen();
+  else if(e.key==='Enter') validarPin();
 }
 
 // ═══ DATOS ════════════════════════════════════════════════════
@@ -314,6 +340,18 @@ async function loadAll(){
 }
 
 function setTab(t){
+  // Resetear acceso al cambiar de pestaña
+  state.pinEmpleadoOk=false;
+  state.pinDuenoOk=false;
+  state.empleadoActual=null;
+
+  // Pestañas que requieren PIN
+  if(t==='empleados'){
+    state.tab=t;
+    document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
+    showPin('dueno',()=>render());
+    return;
+  }
   state.tab=t;
   document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
   render();
@@ -733,7 +771,7 @@ function showNuevaOrden(){
           <div class="form-label">Empleado que realizó el trabajo</div>
           <select class="select" id="m-empleado">
             <option value="">— Sin asignar —</option>
-            ${state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('')}
+            ${state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}" ${state.empleadoActual&&state.empleadoActual.id===e.id?'selected':''}>${e.nombre}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -1059,6 +1097,10 @@ function showNuevoEmpleado(){
         <div class="form-label">Nombre completo *</div>
         <input class="input" id="emp-nombre" placeholder="Ej: Juan Pérez">
       </div>
+      <div class="form-group">
+        <div class="form-label">DNI * (será su PIN de acceso)</div>
+        <input class="input" id="emp-dni" type="number" placeholder="Ej: 38123456">
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" onclick="closeModal()">Cancelar</button>
         <button class="btn btn-primary" id="btn-guardar-emp" onclick="guardarEmpleado()">Guardar</button>
@@ -1069,11 +1111,13 @@ function showNuevoEmpleado(){
 
 window.guardarEmpleado=async function(){
   const nombre=document.getElementById('emp-nombre')?.value.trim();
+  const dni=document.getElementById('emp-dni')?.value.trim();
   const errEl=document.getElementById('emp-error');
   if(!nombre){if(errEl)errEl.innerHTML='<div class="error-msg">El nombre es obligatorio</div>';return;}
+  if(!dni){if(errEl)errEl.innerHTML='<div class="error-msg">El DNI es obligatorio — será el PIN del empleado</div>';return;}
   const btn=document.getElementById('btn-guardar-emp');
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
-  const {error}=await db.from('empleados').insert({nombre,activo:true});
+  const {error}=await db.from('empleados').insert({nombre,activo:true,dni});
   if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
   await loadAll(); closeModal();
 };
