@@ -197,6 +197,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
     <button onclick="setTab('stock')">📦 Stock</button>
     <button onclick="showPin('dueno',()=>setTab('empleados'))">👷 Empleados</button>
     <button onclick="showPin('dueno',()=>setTab('gastos'))">💸 Gastos</button>
+    <button onclick="showPin('dueno',()=>setTab('reportes'))">📊 Reportes</button>
   </div>
   <div class="local-badge" onclick="showCambiarLocal()">
     <span id="topbar-local-dot">🔴</span>
@@ -250,6 +251,8 @@ let state = {
   tab:'dashboard', localActual:'gaona3619',
   clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[], empleados:[], gastos:[],
   searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
+  filtroFecha:'todos', filtroEmpleado:'', filtroServicio:'', filtroMetodo:'',
+  filtroFechaDesde:'', filtroFechaHasta:'',
   loading:false, error:null,
   pinEmpleadoOk:false, pinDuenoOk:false,
   empleadoActual:null,
@@ -410,7 +413,7 @@ function setTab(t){
   state.pinDuenoOk=false;
   state.empleadoActual=null;
   state.tab=t;
-  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados','gastos'][i]===t));
+  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados','gastos','reportes'][i]===t));
   render();
 }
 
@@ -439,9 +442,10 @@ function render(){
   const mc=document.getElementById('main-content'); if(!mc) return;
   if(state.loading){mc.innerHTML='<div class="loading">Cargando...</div>';return;}
   if(state.error){mc.innerHTML=`<div class="error-msg">${state.error}</div><button class="btn" onclick="loadAll()" style="margin-top:8px">Reintentar</button>`;return;}
-  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock,empleados:renderEmpleados,gastos:renderGastos};
+  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock,empleados:renderEmpleados,gastos:renderGastos,reportes:renderReportes};
   mc.innerHTML=(map[state.tab]||renderDashboard)();
   if(state.tab==='stock') renderStockItems();
+  if(state.tab==='ordenes') renderOrdenesItems();
 }
 
 // ═══ DASHBOARD ════════════════════════════════════════════════
@@ -596,28 +600,129 @@ function showDesglosePagos(){
 }
 
 // ═══ ÓRDENES ══════════════════════════════════════════════════
-function renderOrdenes(){
+function getFechaRango(filtro){
+  const hoy=new Date(); hoy.setHours(0,0,0,0);
+  if(filtro==='hoy') return [hoy.toISOString().slice(0,10), hoy.toISOString().slice(0,10)];
+  if(filtro==='semana'){
+    const lunes=new Date(hoy); lunes.setDate(hoy.getDate()-hoy.getDay()+1);
+    return [lunes.toISOString().slice(0,10), hoy.toISOString().slice(0,10)];
+  }
+  if(filtro==='mes'){
+    const inicio=new Date(hoy.getFullYear(),hoy.getMonth(),1);
+    return [inicio.toISOString().slice(0,10), hoy.toISOString().slice(0,10)];
+  }
+  if(filtro==='mes_anterior'){
+    const inicio=new Date(hoy.getFullYear(),hoy.getMonth()-1,1);
+    const fin=new Date(hoy.getFullYear(),hoy.getMonth(),0);
+    return [inicio.toISOString().slice(0,10), fin.toISOString().slice(0,10)];
+  }
+  return null;
+}
+
+function filtrarOrdenes(){
+  let result=[...state.ordenes];
   const q=state.searchOrden.toLowerCase();
-  const filtradas=state.ordenes.filter(o=>{
-    if(!q) return true;
-    const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
-    return (v&&v.patente.toLowerCase().includes(q))||(c&&c.nombre.toLowerCase().includes(q));
-  });
+  if(q){
+    result=result.filter(o=>{
+      const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+      return (v&&v.patente.toLowerCase().includes(q))||(c&&c.nombre.toLowerCase().includes(q));
+    });
+  }
+  const rango=getFechaRango(state.filtroFecha);
+  if(rango) result=result.filter(o=>o.fecha>=rango[0]&&o.fecha<=rango[1]);
+  if(state.filtroFechaDesde) result=result.filter(o=>o.fecha>=state.filtroFechaDesde);
+  if(state.filtroFechaHasta) result=result.filter(o=>o.fecha<=state.filtroFechaHasta);
+  if(state.filtroEmpleado) result=result.filter(o=>o.empleado_id===state.filtroEmpleado);
+  if(state.filtroServicio) result=result.filter(o=>(o.servicios||[]).some(s=>s.toLowerCase().includes(state.filtroServicio.toLowerCase())));
+  if(state.filtroMetodo) result=result.filter(o=>(o.metodo_pago||'efectivo')===state.filtroMetodo);
+  return result;
+}
+
+function renderOrdenes(){
+  const filtradas=filtrarOrdenes().sort((a,b)=>b.fecha.localeCompare(a.fecha)||((b.hora||'').localeCompare(a.hora||'')));
+  const totalFiltrado=filtradas.reduce((s,o)=>s+(o.total||0),0);
+  const empOpts=state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}" ${state.filtroEmpleado===e.id?'selected':''}>${e.nombre}</option>`).join('');
+  const periodos=[['todos','Todos'],['hoy','Hoy'],['semana','Esta semana'],['mes','Este mes'],['mes_anterior','Mes anterior'],['rango','Rango personalizado']];
+
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div style="font-size:15px;font-weight:700">Todas las órdenes</div>
+    <div style="font-size:15px;font-weight:700">Órdenes de trabajo</div>
     <button class="btn btn-primary btn-sm" onclick="showPinOrden(()=>showNuevaOrden())">+ Nueva orden</button>
   </div>
-  <div class="search-bar">
-    <input class="input" placeholder="Buscar por patente o nombre..." value="${state.searchOrden}" oninput="state.searchOrden=this.value;render()">
+
+  <!-- Buscador -->
+  <div class="search-bar" style="margin-bottom:10px">
+    <input class="input" placeholder="Buscar por patente o nombre..." value="${state.searchOrden}" oninput="state.searchOrden=this.value;renderOrdenesItems()">
   </div>
+
+  <!-- Filtros -->
+  <div class="card" style="padding:12px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Filtros</div>
+    <div class="grid2" style="gap:8px;margin-bottom:8px">
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Período</div>
+        <select class="select" onchange="state.filtroFecha=this.value;state.filtroFechaDesde='';state.filtroFechaHasta='';renderOrdenesItems()">
+          ${periodos.map(([v,l])=>`<option value="${v}" ${state.filtroFecha===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Empleado</div>
+        <select class="select" onchange="state.filtroEmpleado=this.value;renderOrdenesItems()">
+          <option value="">Todos</option>
+          ${empOpts}
+        </select>
+      </div>
+    </div>
+    <div class="grid2" style="gap:8px;margin-bottom:8px">
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Servicio</div>
+        <select class="select" onchange="state.filtroServicio=this.value;renderOrdenesItems()">
+          <option value="">Todos</option>
+          ${SERVICIOS_PREDEFINIDOS.map(s=>`<option value="${s}" ${state.filtroServicio===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Método de pago</div>
+        <select class="select" onchange="state.filtroMetodo=this.value;renderOrdenesItems()">
+          <option value="">Todos</option>
+          <option value="efectivo" ${state.filtroMetodo==='efectivo'?'selected':''}>💵 Efectivo</option>
+          <option value="transferencia" ${state.filtroMetodo==='transferencia'?'selected':''}>📲 Transferencia</option>
+          <option value="tarjeta" ${state.filtroMetodo==='tarjeta'?'selected':''}>💳 Tarjeta</option>
+        </select>
+      </div>
+    </div>
+    ${state.filtroFecha==='rango'?`
+    <div class="grid2" style="gap:8px;margin-bottom:8px">
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Desde</div>
+        <input class="input" type="date" value="${state.filtroFechaDesde||''}" onchange="state.filtroFechaDesde=this.value;renderOrdenesItems()">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Hasta</div>
+        <input class="input" type="date" value="${state.filtroFechaHasta||''}" onchange="state.filtroFechaHasta=this.value;renderOrdenesItems()">
+      </div>
+    </div>`:''}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+      <span style="font-size:12px;color:#888">${filtradas.length} orden${filtradas.length!==1?'es':''} · ${formatMoney(totalFiltrado)}</span>
+      <button class="btn-link" onclick="state.filtroFecha='todos';state.filtroEmpleado='';state.filtroServicio='';state.filtroMetodo='';state.filtroFechaDesde='';state.filtroFechaHasta='';state.searchOrden='';render()">Limpiar filtros</button>
+    </div>
+  </div>
+
+  <!-- Filtro rápido por local -->
   <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
     ${Object.entries(LOCALES).map(([id,l])=>`
-      <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${l.color}20;color:${l.color};font-weight:600;cursor:pointer" onclick="state.searchOrden='${l.nombre}';render()">
+      <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${l.color}20;color:${l.color};font-weight:600;cursor:pointer" onclick="state.searchOrden='${l.nombre}';renderOrdenesItems()">
         ${l.dot} ${l.nombre}</span>`).join('')}
-    <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:#f5f5f0;color:#888;cursor:pointer" onclick="state.searchOrden='';render()">Ver todos</span>
+    <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:#f5f5f0;color:#888;cursor:pointer" onclick="state.searchOrden='';renderOrdenesItems()">Ver todos</span>
   </div>
-  ${filtradas.length===0?'<div class="empty">No se encontraron órdenes</div>':filtradas.map(o=>ordenCardHTML(o)).join('')}`;
+
+  <div id="ordenes-items-container"></div>`;
+}
+
+function renderOrdenesItems(){
+  const el=document.getElementById('ordenes-items-container'); if(!el) return;
+  const filtradas=filtrarOrdenes().sort((a,b)=>b.fecha.localeCompare(a.fecha)||((b.hora||'').localeCompare(a.hora||'')));
+  el.innerHTML=filtradas.length===0?'<div class="empty">No se encontraron órdenes</div>':filtradas.map(o=>ordenCardHTML(o)).join('');
 }
 
 // ═══ CLIENTES ═════════════════════════════════════════════════
@@ -1415,6 +1520,142 @@ window.borrarGasto=async function(id){
   await db.from('gastos').delete().eq('id',id);
   await loadAll(); render();
 };
+
+function renderReportes(){
+  // Tomar período: este mes por defecto
+  const hoy=new Date();
+  const inicioMes=new Date(hoy.getFullYear(),hoy.getMonth(),1).toISOString().slice(0,10);
+  const finMes=hoy.toISOString().slice(0,10);
+  const ordenesMes=state.ordenes.filter(o=>o.fecha>=inicioMes&&o.fecha<=finMes);
+
+  // 1. Ranking servicios
+  const serviciosCount={};
+  ordenesMes.forEach(o=>(o.servicios||[]).forEach(s=>{serviciosCount[s]=(serviciosCount[s]||0)+1;}));
+  const topServicios=Object.entries(serviciosCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // 2. Empleado top
+  const empCount={};
+  ordenesMes.forEach(o=>{if(o.empleado_id)empCount[o.empleado_id]=(empCount[o.empleado_id]||0)+1;});
+  const topEmpleados=Object.entries(empCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // 3. Horario pico
+  const horaCount={};
+  ordenesMes.forEach(o=>{if(o.hora){const h=o.hora.slice(0,2)+':00';horaCount[h]=(horaCount[h]||0)+1;}});
+  const topHoras=Object.entries(horaCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // 4. Día de la semana pico
+  const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const diaCount={};
+  ordenesMes.forEach(o=>{const d=dias[new Date(o.fecha+'T12:00:00').getDay()];diaCount[d]=(diaCount[d]||0)+1;});
+  const topDias=Object.entries(diaCount).sort((a,b)=>b[1]-a[1]);
+
+  // 5. Clientes frecuentes
+  const clienteCount={};
+  ordenesMes.forEach(o=>{
+    const c=getCliente(o.vehiculo_id);
+    if(c) clienteCount[c.id]=(clienteCount[c.id]||0)+1;
+  });
+  const topClientes=Object.entries(clienteCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // 6. Ingresos por local
+  const ingresosPorLocal=Object.entries(LOCALES).map(([id,l])=>{
+    const total=ordenesMes.filter(o=>o.local===id).reduce((s,o)=>s+(o.total||0),0);
+    const cant=ordenesMes.filter(o=>o.local===id).length;
+    return {l,total,cant};
+  });
+  const maxIngreso=Math.max(...ingresosPorLocal.map(x=>x.total),1);
+
+  function barHTML(val,max,color){
+    const pct=Math.round(val/max*100);
+    return `<div style="background:#f0f0e8;border-radius:4px;height:8px;margin-top:4px"><div style="background:${color};height:8px;border-radius:4px;width:${pct}%"></div></div>`;
+  }
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div style="font-size:15px;font-weight:700">📊 Reportes <span style="font-size:11px;background:#FDD835;padding:2px 8px;border-radius:6px;font-weight:700;margin-left:6px">Solo dueño</span></div>
+  </div>
+  <div style="font-size:12px;color:#888;margin-bottom:16px">Datos del mes actual — ${hoy.toLocaleString('es-AR',{month:'long',year:'numeric'})}</div>
+
+  <!-- Ingresos por local -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:12px">💰 Ingresos por local</div>
+    ${ingresosPorLocal.map(({l,total,cant})=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="font-weight:600;color:${l.color}">${l.dot} ${l.nombre}</span>
+          <span><strong>${formatMoney(total)}</strong> <span style="color:#888;font-size:12px">(${cant} órd.)</span></span>
+        </div>
+        ${barHTML(total,maxIngreso,l.color)}
+      </div>`).join('')}
+  </div>
+
+  <div class="grid2" style="gap:12px;margin-bottom:12px">
+    <!-- Servicios más realizados -->
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">🔧 Servicios top</div>
+      ${topServicios.length===0?'<div style="font-size:12px;color:#888">Sin datos</div>':
+        topServicios.map(([s,n],i)=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0e8;font-size:13px">
+          <span style="color:#888;margin-right:6px">${i+1}.</span><span style="flex:1">${s}</span>
+          <span style="font-weight:700;background:#f5f5f0;padding:2px 8px;border-radius:20px;font-size:12px">${n}</span>
+        </div>`).join('')}
+    </div>
+
+    <!-- Empleados top -->
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">👷 Empleados top</div>
+      ${topEmpleados.length===0?'<div style="font-size:12px;color:#888">Sin datos</div>':
+        topEmpleados.map(([eid,n],i)=>{
+          const emp=getEmpleado(eid);
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0e8;font-size:13px">
+            <span style="color:#888;margin-right:6px">${i+1}.</span><span style="flex:1">${emp?emp.nombre:'—'}</span>
+            <span style="font-weight:700;background:#f5f5f0;padding:2px 8px;border-radius:20px;font-size:12px">${n}</span>
+          </div>`;
+        }).join('')}
+    </div>
+  </div>
+
+  <div class="grid2" style="gap:12px;margin-bottom:12px">
+    <!-- Horario pico -->
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">🕐 Horario pico</div>
+      ${topHoras.length===0?'<div style="font-size:12px;color:#888">Sin datos de hora</div>':
+        topHoras.map(([h,n],i)=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0e8;font-size:13px">
+          <span style="color:#888;margin-right:6px">${i+1}.</span><span style="flex:1">${h}hs</span>
+          <span style="font-weight:700;background:#f5f5f0;padding:2px 8px;border-radius:20px;font-size:12px">${n}</span>
+        </div>`).join('')}
+    </div>
+
+    <!-- Día pico -->
+    <div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">📅 Día más activo</div>
+      ${topDias.length===0?'<div style="font-size:12px;color:#888">Sin datos</div>':
+        topDias.map(([d,n],i)=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0e8;font-size:13px">
+          <span style="color:#888;margin-right:6px">${i+1}.</span><span style="flex:1">${d}</span>
+          <span style="font-weight:700;background:#f5f5f0;padding:2px 8px;border-radius:20px;font-size:12px">${n}</span>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Clientes frecuentes -->
+  <div class="card" style="margin-bottom:12px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:10px">⭐ Clientes frecuentes</div>
+    ${topClientes.length===0?'<div style="font-size:12px;color:#888">Sin datos</div>':
+      topClientes.map(([cid,n],i)=>{
+        const c=state.clientes.find(x=>x.id===cid);
+        const vehs=state.vehiculos.filter(v=>v.cliente_id===cid);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0e8">
+          <div>
+            <div style="font-size:13px;font-weight:600">${i+1}. ${c?c.nombre:'—'}</div>
+            <div style="font-size:11px;color:#888">${vehs.map(v=>v.patente).join(' · ')}</div>
+          </div>
+          <span style="font-weight:700;background:#FDD835;padding:3px 10px;border-radius:20px;font-size:12px">${n} visita${n!==1?'s':''}</span>
+        </div>`;
+      }).join('')}
+  </div>`;
+}
 
 function renderEmpleados(){
   const activos=state.empleados.filter(e=>e.activo);
