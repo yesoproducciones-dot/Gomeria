@@ -266,12 +266,10 @@ window.pinPress=function(val){
   if(val===''||_pinBuf.length>=maxLen) return;
   _pinBuf+=val; updatePinDots();
   // Validar automáticamente al completar
-  const maxLen = _pinNivel==='dueno' ? 4 : 8;
+  clearTimeout(window._pinTimeout);
   if(_pinBuf.length===maxLen){
-    clearTimeout(window._pinTimeout);
     window._pinTimeout = setTimeout(()=>{ validarPin(); }, 200);
   } else {
-    clearTimeout(window._pinTimeout);
     const minLen = _pinNivel==='dueno' ? 4 : 6;
     if(_pinBuf.length >= minLen) {
       window._pinTimeout = setTimeout(()=>{ validarPin(); }, 800);
