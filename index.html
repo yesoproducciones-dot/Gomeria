@@ -145,6 +145,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
     <button onclick="setTab('ordenes')">📋 Órdenes</button>
     <button onclick="setTab('clientes')">👥 Clientes</button>
     <button onclick="setTab('stock')">📦 Stock</button>
+    <button onclick="showPin('dueno',()=>setTab('empleados'))">👷 Empleados</button>
   </div>
   <div class="local-badge" onclick="showCambiarLocal()">
     <span id="topbar-local-dot">🔴</span>
@@ -197,7 +198,7 @@ function traducirError(msg=''){
 
 let state = {
   tab:'dashboard', localActual:'gaona3619',
-  clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[],
+  clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[], empleados:[],
   searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
   loading:false, error:null,
   pinEmpleadoOk:false, pinDuenoOk:false,
@@ -285,24 +286,26 @@ function closePinScreen(){ document.getElementById('pin-container').innerHTML=''
 async function loadAll(){
   state.loading=true; render();
   try {
-    const [c,v,o,s,oi]=await Promise.all([
+    const [c,v,o,s,oi,em]=await Promise.all([
       db.from('clientes').select('*').order('nombre'),
       db.from('vehiculos').select('*'),
       db.from('ordenes').select('*').order('fecha',{ascending:false}),
       db.from('stock').select('*').order('nombre'),
       db.from('orden_insumos').select('*'),
+      db.from('empleados').select('*').order('nombre'),
     ]);
     if(c.error) throw c.error;
     state.clientes=c.data||[]; state.vehiculos=v.data||[];
     state.ordenes=o.data||[]; state.stock=s.data||[];
-    state.ordenInsumos=oi.data||[]; state.error=null;
+    state.ordenInsumos=oi.data||[]; state.empleados=em.data||[];
+    state.error=null;
   } catch(e){ state.error=traducirError(e.message||''); }
   state.loading=false; render();
 }
 
 function setTab(t){
   state.tab=t;
-  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock'][i]===t));
+  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock','empleados'][i]===t));
   render();
 }
 
@@ -317,13 +320,14 @@ function localBadge(localId){
 function getVehiculo(id){return state.vehiculos.find(x=>x.id===id)}
 function getCliente(vId){const v=getVehiculo(vId);return v?state.clientes.find(x=>x.id===v.cliente_id):null}
 function getStock(id){return state.stock.find(x=>x.id===id)}
+function getEmpleado(id){return state.empleados.find(x=>x.id===id)}
 function formatMoney(n){return '$'+(n||0).toLocaleString('es-AR')}
 
 function render(){
   const mc=document.getElementById('main-content'); if(!mc) return;
   if(state.loading){mc.innerHTML='<div class="loading">Cargando...</div>';return;}
   if(state.error){mc.innerHTML=`<div class="error-msg">${state.error}</div><button class="btn" onclick="loadAll()" style="margin-top:8px">Reintentar</button>`;return;}
-  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock};
+  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock,empleados:renderEmpleados};
   mc.innerHTML=(map[state.tab]||renderDashboard)();
   if(state.tab==='stock') renderStockItems();
 }
@@ -334,6 +338,8 @@ function ordenCardHTML(o){
   const servicios=(o.servicios||[]).join(', ');
   const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
   const l=localInfo(o.local);
+  const emp=getEmpleado(o.empleado_id);
+  const hora=o.hora||'';
   return `<div class="card ${l.cls}">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:6px">
       <div class="row">
@@ -343,12 +349,17 @@ function ordenCardHTML(o){
         <span>${c?c.nombre:'—'}</span>
       </div>
       <div class="row">
-        <span style="font-size:12px;color:#888">${o.fecha}</span>
+        <span style="font-size:12px;color:#888">${o.fecha}${hora?' '+hora:''}</span>
         <button class="btn btn-sm" onclick="showOrdenDetalle('${o.id}')">Ver</button>
+        <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️</button>
         ${sigEstado?`<button class="btn btn-sm btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
       </div>
     </div>
-    <div class="row" style="margin-bottom:4px">${localBadge(o.local)}<span style="font-size:12px;color:#888">${servicios||'Sin servicios'}</span></div>
+    <div class="row" style="margin-bottom:4px">
+      ${localBadge(o.local)}
+      ${emp?`<span style="font-size:11px;color:#888">👷 ${emp.nombre}</span>`:''}
+      <span style="font-size:12px;color:#888">${servicios||'Sin servicios'}</span>
+    </div>
     <div style="font-size:14px;font-weight:700">${formatMoney(o.total)}</div>
   </div>`;
 }
@@ -704,6 +715,19 @@ function showNuevaOrden(){
       <div id="m-insumos-list"></div>
 
       <hr class="divider">
+      <div class="grid2">
+        <div class="form-group">
+          <div class="form-label">Empleado que realizó el trabajo</div>
+          <select class="select" id="m-empleado">
+            <option value="">— Sin asignar —</option>
+            ${state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}">${e.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Hora</div>
+          <input class="input" type="time" id="m-hora" value="${new Date().toTimeString().slice(0,5)}">
+        </div>
+      </div>
       <div class="form-group">
         <div class="form-label">Total ($)</div>
         <input class="input" type="number" id="m-total" placeholder="Ej: 15000">
@@ -812,14 +836,19 @@ window.guardarOrden=async function(){
   const vId=document.getElementById('m-vehiculo')?.value;
   const total=parseFloat(document.getElementById('m-total')?.value)||0;
   const notas=document.getElementById('m-notas')?.value||'';
+  const empleadoId=document.getElementById('m-empleado')?.value||null;
+  const hora=document.getElementById('m-hora')?.value||new Date().toTimeString().slice(0,5);
   const errEl=document.getElementById('orden-error');
   if(!vId||vId===''){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná un vehículo válido</div>';return;}
   if(window._serviciosSel.length===0){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná al menos un servicio</div>';return;}
   const btn=document.getElementById('btn-guardar-orden');
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
   const {data:orden,error}=await db.from('ordenes').insert({
-    vehiculo_id:vId,estado:'recibido',servicios:window._serviciosSel,
-    total,notas,fecha:new Date().toISOString().slice(0,10),local:state.localActual
+    vehiculo_id:vId, estado:'recibido', servicios:window._serviciosSel,
+    total, notas, fecha:new Date().toISOString().slice(0,10),
+    local:state.localActual,
+    empleado_id:empleadoId||null,
+    hora,
   }).select().single();
   if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar orden';}return;}
   for(const ins of window._insumosSel) await db.from('orden_insumos').insert({orden_id:orden.id,stock_id:ins.stockId,cantidad:ins.qty});
@@ -863,7 +892,178 @@ function showOrdenDetalle(id){
   </div>`;
 }
 
-// ═══ HISTORIAL CLIENTE ════════════════════════════════════════
+function showOrdenDetalle(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+  const ins=state.ordenInsumos.filter(x=>x.orden_id===id);
+  const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
+  const l=localInfo(o.local);
+  const emp=getEmpleado(o.empleado_id);
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">Orden #${id.slice(-4)}</div>
+        ${badgeHTML(o.estado)}
+      </div>
+      <div style="background:${l.color}15;border:1px solid ${l.color}40;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:${l.color};margin-bottom:12px">${l.dot} GOMERÍA J&Y — ${l.full}</div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div><div class="label">Cliente</div><div style="margin-top:2px;font-size:13px">${c?c.nombre:'—'}</div></div>
+        <div><div class="label">Teléfono</div><div style="margin-top:2px;font-size:13px">${c?c.telefono:'—'}</div></div>
+        <div><div class="label">Vehículo</div><div style="margin-top:2px;font-size:13px">${v?`${v.marca} ${v.modelo}`:''}</div></div>
+        <div><div class="label">Patente</div><div style="margin-top:2px"><span class="placa">${v?v.patente:'?'}</span></div></div>
+        <div><div class="label">Fecha y hora</div><div style="margin-top:2px;font-size:13px">${o.fecha}${o.hora?' — '+o.hora:''}</div></div>
+        <div><div class="label">Empleado</div><div style="margin-top:2px;font-size:13px">${emp?'👷 '+emp.nombre:'—'}</div></div>
+      </div>
+      <hr class="divider">
+      <div class="label" style="margin-bottom:6px">Servicios</div>
+      ${(o.servicios||[]).length?(o.servicios).map(s=>`<div style="font-size:13px;padding:3px 0">• ${s}</div>`).join(''):'<div style="font-size:12px;color:#888">Sin servicios</div>'}
+      ${ins.length?`<hr class="divider"><div class="label" style="margin-bottom:6px">Insumos</div>${ins.map(i=>{const s=getStock(i.stock_id);return`<div class="order-item-row"><span>${s?s.nombre:'?'}</span><span>${i.cantidad} ${s?s.unidad:'u'}</span></div>`;}).join('')}`:''}
+      ${o.notas?`<hr class="divider"><div class="label">Notas</div><div style="font-size:13px;margin-top:4px">${o.notas}</div>`:''}
+      <hr class="divider">
+      <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
+        <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="closeModal();showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️ Editar</button>
+        <button class="btn" onclick="closeModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══ EDITAR ORDEN (solo dueño) ════════════════════════════════
+function showEditarOrden(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+  const empOpts=state.empleados.filter(e=>e.activo).map(e=>`<option value="${e.id}" ${o.empleado_id===e.id?'selected':''}>${e.nombre}</option>`).join('');
+  const estadoOpts=ESTADOS.map(est=>`<option value="${est}" ${o.estado===est?'selected':''}>${ESTADO_LABELS[est]}</option>`).join('');
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="row" style="justify-content:space-between;margin-bottom:4px">
+        <div class="modal-title" style="margin:0">✏️ Editar orden #${id.slice(-4)}</div>
+        <span style="font-size:11px;background:#FDD835;padding:3px 8px;border-radius:6px;font-weight:700">Modo dueño</span>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:14px">${c?c.nombre:'—'} · <span class="placa" style="font-size:11px">${v?v.patente:'?'}</span></div>
+      <div id="editar-orden-error"></div>
+      <div class="form-group">
+        <div class="form-label">Estado</div>
+        <select class="select" id="eo-estado">${estadoOpts}</select>
+      </div>
+      <div class="grid2">
+        <div class="form-group">
+          <div class="form-label">Empleado</div>
+          <select class="select" id="eo-empleado">
+            <option value="">— Sin asignar —</option>
+            ${empOpts}
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">Hora</div>
+          <input class="input" type="time" id="eo-hora" value="${o.hora||''}">
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Total ($)</div>
+        <input class="input" type="number" id="eo-total" value="${o.total||''}">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Notas</div>
+        <input class="input" id="eo-notas" value="${o.notas||''}" placeholder="Observaciones...">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-edicion" onclick="guardarEdicionOrden('${id}')">Guardar cambios</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.guardarEdicionOrden=async function(id){
+  const estado=document.getElementById('eo-estado')?.value;
+  const empleadoId=document.getElementById('eo-empleado')?.value||null;
+  const hora=document.getElementById('eo-hora')?.value||null;
+  const total=parseFloat(document.getElementById('eo-total')?.value)||0;
+  const notas=document.getElementById('eo-notas')?.value||'';
+  const errEl=document.getElementById('editar-orden-error');
+  const btn=document.getElementById('btn-guardar-edicion');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {error}=await db.from('ordenes').update({
+    estado, empleado_id:empleadoId||null, hora, total, notas,
+    updated_at:new Date().toISOString()
+  }).eq('id',id);
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar cambios';}return;}
+  await loadAll(); closeModal();
+};
+
+// ═══ EMPLEADOS (solo dueño) ═══════════════════════════════════
+function renderEmpleados(){
+  const activos=state.empleados.filter(e=>e.activo);
+  const inactivos=state.empleados.filter(e=>!e.activo);
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700">👷 Empleados <span style="font-size:11px;background:#FDD835;padding:2px 8px;border-radius:6px;font-weight:700;margin-left:6px">Sección dueño</span></div>
+    <button class="btn btn-primary btn-sm" onclick="showNuevoEmpleado()">+ Agregar empleado</button>
+  </div>
+  ${activos.length===0?'<div class="empty">No hay empleados cargados</div>':activos.map(e=>`
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:700;font-size:14px">👷 ${e.nombre}</div>
+          <div style="font-size:12px;color:#3B6D11;margin-top:2px">● Activo</div>
+        </div>
+        <button class="btn-danger btn-sm" onclick="toggleEmpleado('${e.id}',false)">Desactivar</button>
+      </div>
+    </div>`).join('')}
+  ${inactivos.length>0?`
+    <div style="font-size:12px;color:#888;margin-top:16px;margin-bottom:8px">INACTIVOS</div>
+    ${inactivos.map(e=>`
+    <div class="card" style="opacity:0.6">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div style="font-weight:700;font-size:14px">👷 ${e.nombre}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">● Inactivo</div>
+        </div>
+        <button class="btn btn-sm" onclick="toggleEmpleado('${e.id}',true)">Reactivar</button>
+      </div>
+    </div>`).join('')}`:''}`;
+}
+
+function showNuevoEmpleado(){
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:360px">
+      <div class="modal-title">Agregar empleado</div>
+      <div id="emp-error"></div>
+      <div class="form-group">
+        <div class="form-label">Nombre completo *</div>
+        <input class="input" id="emp-nombre" placeholder="Ej: Juan Pérez">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-emp" onclick="guardarEmpleado()">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.guardarEmpleado=async function(){
+  const nombre=document.getElementById('emp-nombre')?.value.trim();
+  const errEl=document.getElementById('emp-error');
+  if(!nombre){if(errEl)errEl.innerHTML='<div class="error-msg">El nombre es obligatorio</div>';return;}
+  const btn=document.getElementById('btn-guardar-emp');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {error}=await db.from('empleados').insert({nombre,activo:true});
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+  await loadAll(); closeModal();
+};
+
+window.toggleEmpleado=async function(id, activo){
+  await db.from('empleados').update({activo}).eq('id',id);
+  await loadAll(); render();
+};
+
+
 function showClienteDetalle(id){
   const c=state.clientes.find(x=>x.id===id);
   const vehs=state.vehiculos.filter(v=>v.cliente_id===id);
