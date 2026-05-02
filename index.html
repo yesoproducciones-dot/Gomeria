@@ -112,6 +112,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
 .filter-chip{border:1px solid #ddd;border-radius:20px;padding:4px 12px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .15s}
 .filter-chip.active{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
 .filter-chip:hover:not(.active){border-color:#1a1a1a}
+.badge-cancelado{background:#F9EBEA;color:#922B21}
 .metodo-btn{border:1px solid #ddd;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;background:#fff;color:#555;transition:all .15s;font-weight:500}
 .metodo-btn:hover{border-color:#1a1a1a;color:#1a1a1a}
 .metodo-btn.active{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
@@ -226,7 +227,7 @@ const LOCALES = {
 };
 
 const ESTADOS = ['recibido','en proceso','listo','entregado'];
-const ESTADO_LABELS = {recibido:'Recibido','en proceso':'En proceso',listo:'Listo',entregado:'Entregado'};
+const ESTADO_LABELS = {recibido:'Recibido','en proceso':'En proceso',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
 
 const SERVICIOS_PREDEFINIDOS = [
   'Reparación de pinchazo','Cambio de cubierta','Balanceo','Alineación',
@@ -418,7 +419,7 @@ function setTab(t){
 }
 
 function badgeHTML(estado){
-  const cls={'recibido':'recibido','en proceso':'proceso','listo':'listo','entregado':'entregado'}[estado]||'recibido';
+  const cls={'recibido':'recibido','en proceso':'proceso','listo':'listo','entregado':'entregado','cancelado':'cancelado'}[estado]||'recibido';
   return `<span class="badge badge-${cls}">${ESTADO_LABELS[estado]||estado}</span>`;
 }
 function localBadge(localId){
@@ -1094,6 +1095,10 @@ function showNuevaOrden(){
         <div class="form-label">Notas</div>
         <input class="input" id="m-notas" placeholder="Observaciones opcionales...">
       </div>
+      <div class="form-group">
+        <div class="form-label">📷 Foto del vehículo (opcional)</div>
+        <input class="input" type="file" id="m-foto" accept="image/*" capture="environment" style="padding:6px">
+        <div id="m-foto-preview" style="margin-top:6px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn" onclick="closeModal()">Cancelar</button>
         <button class="btn btn-primary" id="btn-guardar-orden" onclick="guardarOrden()">Guardar orden</button>
@@ -1198,6 +1203,7 @@ window.guardarOrden=async function(){
   const hora=document.getElementById('m-hora')?.value||new Date().toTimeString().slice(0,5);
   const fecha=document.getElementById('m-fecha')?.value||new Date().toISOString().slice(0,10);
   const metodoPago=document.getElementById('m-metodo-pago')?.value||'efectivo';
+  const fotoFile=document.getElementById('m-foto')?.files?.[0]||null;
   const errEl=document.getElementById('orden-error');
   if(!vId||vId===''){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná un vehículo válido</div>';return;}
   if(window._serviciosSel.length===0){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná al menos un servicio</div>';return;}
@@ -1213,6 +1219,19 @@ window.guardarOrden=async function(){
   }).select().single();
   if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar orden';}return;}
   for(const ins of window._insumosSel) await db.from('orden_insumos').insert({orden_id:orden.id,stock_id:ins.stockId,cantidad:ins.qty});
+  // Subir foto si hay
+  if(fotoFile){
+    try{
+      if(btn) btn.textContent='Subiendo foto...';
+      const ext=fotoFile.name.split('.').pop();
+      const path=`ordenes/${orden.id}.${ext}`;
+      const {data:upData,error:upErr}=await db.storage.from('fotos-ordenes').upload(path,fotoFile,{upsert:true});
+      if(!upErr){
+        const {data:urlData}=db.storage.from('fotos-ordenes').getPublicUrl(path);
+        await db.from('ordenes').update({foto_url:urlData.publicUrl}).eq('id',orden.id);
+      }
+    }catch(e){console.log('Error subiendo foto:',e);}
+  }
   await loadAll(); closeModal();
 };
 
@@ -1248,12 +1267,22 @@ function showOrdenDetalle(id){
       <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
+        ${o.estado!=='cancelado'&&o.estado!=='entregado'?`<button class="btn-danger btn-sm" onclick="showPin('dueno',()=>cancelarOrden('${o.id}'))">✖ Cancelar</button>`:''}
         <button class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff" onclick="enviarWhatsApp('${o.id}')">📲 WhatsApp</button>
         <button class="btn btn-sm" style="background:#FDD835;border-color:#FDD835" onclick="closeModal();showPin('dueno',()=>showEditarOrden('${o.id}'))">✏️ Editar</button>
         <button class="btn" onclick="closeModal()">Cerrar</button>
       </div>
     </div>
   </div>`;
+}
+
+async function cancelarOrden(id){
+  if(!confirm('¿Cancelar esta orden? Se va a marcar como cancelada.')) return;
+  const {error}=await db.from('ordenes').update({estado:'cancelado',updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert(traducirError(error.message));return;}
+  const o=state.ordenes.find(x=>x.id===id);
+  if(o) o.estado='cancelado';
+  closeModal(); render();
 }
 
 function enviarWhatsApp(id){
@@ -1760,6 +1789,9 @@ function showEditarCliente(id){
       <div class="form-group"><div class="form-label">Email</div>
         <input class="input" id="ec-email" value="${c.email||''}">
       </div>
+      <div class="form-group">
+        <div class="form-label">📌 Nota interna (solo visible para el equipo)</div>
+        <input class="input" id="ec-notas-internas" value="${c.notas_internas||''}" placeholder="Ej: Cliente difícil, debe plata, prefiere llamar...">
       <hr class="divider">
       <div class="seccion-titulo">Vehículos registrados</div>
       ${vehs.map(v=>`
@@ -1797,11 +1829,12 @@ window.guardarEdicionCliente=async function(id){
   const nombre=document.getElementById('ec-nombre')?.value.trim();
   const telefono=document.getElementById('ec-tel')?.value.trim();
   const email=document.getElementById('ec-email')?.value.trim();
+  const notasInternas=document.getElementById('ec-notas-internas')?.value.trim();
   const errEl=document.getElementById('editar-cliente-error');
   if(!nombre||!telefono){if(errEl)errEl.innerHTML='<div class="error-msg">Nombre y teléfono son obligatorios</div>';return;}
   const btn=document.getElementById('btn-guardar-cliente-edit');
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
-  const {error}=await db.from('clientes').update({nombre,telefono,email:email||null}).eq('id',id);
+  const {error}=await db.from('clientes').update({nombre,telefono,email:email||null,notas_internas:notasInternas||null}).eq('id',id);
   if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar cambios';}return;}
   const vehs=state.vehiculos.filter(v=>v.cliente_id===id);
   for(const v of vehs){
@@ -1829,6 +1862,9 @@ function showClienteDetalle(id){
         <div><div class="label">Teléfono</div><div style="font-size:13px;margin-top:2px">${c.telefono}</div></div>
         <div><div class="label">Email</div><div style="font-size:13px;margin-top:2px">${c.email||'—'}</div></div>
       </div>
+      ${c.notas_internas?`<div style="background:#FEF9C3;border:1px solid #FDD835;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px">
+        <span style="font-weight:700">📌 Nota interna:</span> ${c.notas_internas}
+      </div>`:''}
       <hr class="divider">
       <div class="label" style="margin-bottom:8px">Vehículos</div>
       ${vehs.map(v=>`<div style="font-size:13px;margin-bottom:4px"><span class="placa">${v.patente}</span> — ${v.marca} ${v.modelo}</div>`).join('')||'<div style="font-size:12px;color:#888">Sin vehículos</div>'}
