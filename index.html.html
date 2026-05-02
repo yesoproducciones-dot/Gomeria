@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gomería J&Y — Sistema</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a1a1a;font-size:14px}
+.banner{background:#FDD835;border-bottom:4px solid #1a1a1a}
+.banner-inner{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;max-width:900px;margin:0 auto}
+.banner-logo{display:flex;align-items:center;gap:14px}
+.banner-icon{font-size:36px}
+.banner-title{font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#1a1a1a;text-transform:uppercase;line-height:1}
+.banner-title span{color:#C0392B}
+.banner-sub{font-size:11px;font-weight:700;color:#C0392B;letter-spacing:1px;text-transform:uppercase;margin-top:1px}
+.banner-info{text-align:right;font-size:11px;color:#333;line-height:1.6}
+.banner-info strong{font-size:13px;color:#1a1a1a}
+.topbar{background:#1a1a1a;padding:8px 16px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.nav{display:flex;gap:4px;flex-wrap:wrap}
+.nav button{background:transparent;border:1px solid transparent;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:#aaa;transition:all .15s;font-weight:500}
+.nav button.active{background:#FDD835;border-color:#FDD835;color:#1a1a1a}
+.nav button:hover:not(.active){background:#333;color:#fff}
+.local-badge{margin-left:auto;background:#333;border:1px solid #555;border-radius:6px;padding:5px 10px;font-size:11px;color:#FDD835;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px}
+.local-badge:hover{background:#444}
+.content{padding:16px;max-width:900px;width:100%;margin:0 auto}
+.card{background:#fff;border:1px solid #e8e8e0;border-radius:12px;padding:16px;margin-bottom:10px}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px}
+.badge-recibido{background:#E6F1FB;color:#185FA5}
+.badge-proceso{background:#FAEEDA;color:#854F0B}
+.badge-listo{background:#EAF3DE;color:#3B6D11}
+.badge-entregado{background:#F1EFE8;color:#5F5E5A}
+.local-3619{border-left:3px solid #C0392B}
+.local-3391{border-left:3px solid #2980B9}
+.local-avellaneda{border-left:3px solid #27AE60}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.stat-card{background:#fff;border:1px solid #e8e8e0;border-radius:10px;padding:12px;text-align:center}
+.stat-num{font-size:22px;font-weight:700}
+.stat-lbl{font-size:11px;color:#888;margin-top:2px}
+.btn{background:#fff;border:1px solid #ddd;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;color:#1a1a1a;transition:all .15s}
+.btn:hover{background:#f5f5f0}
+.btn-primary{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.btn-primary:hover{background:#333}
+.btn-yellow{background:#FDD835;border-color:#FDD835;color:#1a1a1a;font-weight:600}
+.btn-yellow:hover{background:#F9C800}
+.btn-danger{background:#fff;border:1px solid #e74c3c;color:#e74c3c;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer}
+.btn-danger:hover{background:#FCEBEB}
+.btn-edit{background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#1a1a1a}
+.btn-edit:hover{background:#e8e8e0}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-link{background:transparent;border:none;color:#C0392B;font-size:12px;cursor:pointer;padding:0;text-decoration:underline}
+.input{width:100%;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;color:#1a1a1a;transition:border .15s}
+.input:focus{outline:none;border-color:#1a1a1a}
+.select{width:100%;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;color:#1a1a1a}
+.select:focus{outline:none;border-color:#1a1a1a}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.form-label{font-size:12px;color:#666;font-weight:500}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-start;justify-content:center;z-index:100;padding:16px;overflow-y:auto}
+.modal{background:#fff;border-radius:14px;border:1px solid #e8e8e0;padding:20px;width:100%;max-width:520px;margin:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.label{font-size:12px;color:#888}
+.placa{font-family:monospace;font-size:13px;font-weight:700;background:#f5f5f0;padding:2px 8px;border-radius:6px;letter-spacing:1px}
+.stock-low{color:#C0392B;font-weight:700}
+.empty{text-align:center;padding:40px;color:#aaa;font-size:13px}
+.divider{border:none;border-top:1px solid #f0f0e8;margin:12px 0}
+.error-msg{background:#FCEBEB;border:1px solid #F09595;border-radius:8px;padding:10px 14px;font-size:13px;color:#A32D2D;margin-bottom:12px}
+.success-msg{background:#EAF3DE;border:1px solid #C0DD97;border-radius:8px;padding:10px 14px;font-size:13px;color:#3B6D11;margin-bottom:12px}
+.loading{text-align:center;padding:40px;color:#888}
+.search-bar{display:flex;gap:8px;margin-bottom:14px}
+.seccion-titulo{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;margin-top:4px}
+.mini-form{background:#f9f9f5;border:1px solid #e8e8e0;border-radius:10px;padding:14px;margin-top:8px;margin-bottom:10px}
+.tag{background:#f5f5f0;border:1px solid #e0e0d8;border-radius:20px;font-size:12px;padding:3px 10px;display:inline-flex;align-items:center;gap:4px}
+.tag-x{cursor:pointer;color:#aaa;font-size:14px;line-height:1}.tag-x:hover{color:#C0392B}
+.servicios-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.servicio-chip{border:1px solid #ddd;border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .15s;user-select:none}
+.servicio-chip:hover{border-color:#1a1a1a;color:#1a1a1a}
+.servicio-chip.selected{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.order-item-row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f0f0e8}
+.order-item-row:last-child{border-bottom:none}
+.total-row{display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding-top:8px}
+.local-selector{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.local-opt{border:2px solid #ddd;border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s;line-height:1.3}
+.local-opt:hover{border-color:#1a1a1a}
+.local-opt.sel-3619{border-color:#C0392B;background:#FEF0EE;color:#C0392B}
+.local-opt.sel-3391{border-color:#2980B9;background:#EBF5FB;color:#2980B9}
+.local-opt.sel-avellaneda{border-color:#27AE60;background:#EAFAF1;color:#27AE60}
+/* PIN */
+.pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200}
+.pin-box{background:#fff;border-radius:16px;padding:28px;width:300px;text-align:center}
+.pin-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.pin-sub{font-size:13px;color:#888;margin-bottom:20px}
+.pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:20px}
+.pin-dot{width:14px;height:14px;border-radius:50%;background:#e8e8e0;transition:all .15s}
+.pin-dot.filled{background:#1a1a1a}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pin-btn{border:1px solid #ddd;border-radius:10px;padding:14px;font-size:18px;font-weight:600;cursor:pointer;background:#fff;transition:all .15s}
+.pin-btn:hover{background:#f5f5f0;border-color:#1a1a1a}
+.pin-btn.del{font-size:14px;color:#C0392B}
+.pin-error{color:#C0392B;font-size:12px;margin-top:8px;height:18px}
+/* STOCK EDITOR */
+.stock-item-editor{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #f0f0e8}
+.stock-item-editor:last-child{border-bottom:none}
+.qty-control{display:flex;align-items:center;gap:4px}
+.qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:600;line-height:1}
+.qty-btn:hover{background:#f5f5f0;border-color:#1a1a1a}
+.qty-val{min-width:36px;text-align:center;font-size:15px;font-weight:700}
+.stock-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filter-chip{border:1px solid #ddd;border-radius:20px;padding:4px 12px;font-size:12px;cursor:pointer;background:#fff;color:#555;transition:all .15s}
+.filter-chip.active{background:#1a1a1a;border-color:#1a1a1a;color:#fff}
+.filter-chip:hover:not(.active){border-color:#1a1a1a}
+@media(max-width:600px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .grid2,.grid3,.local-selector{grid-template-columns:1fr}
+  .banner-info{display:none}
+  .banner-title{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="banner-inner">
+    <div class="banner-logo">
+      <div class="banner-icon">🔧</div>
+      <div>
+        <div class="banner-title">Gomería <span>J&Y</span></div>
+        <div class="banner-sub">⏰ 24 hs. · Sistema de gestión</div>
+      </div>
+    </div>
+    <div class="banner-info">
+      <strong>📞 15 5829-5801</strong><br>
+      Av. Gaona 3391 · Av. Gaona 3619<br>
+      Av. Avellaneda 4140
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="nav">
+    <button class="active" onclick="setTab('dashboard')">🏠 Inicio</button>
+    <button onclick="setTab('ordenes')">📋 Órdenes</button>
+    <button onclick="setTab('clientes')">👥 Clientes</button>
+    <button onclick="setTab('stock')">📦 Stock</button>
+  </div>
+  <div class="local-badge" onclick="showCambiarLocal()">
+    <span id="topbar-local-dot">🔴</span>
+    <span id="topbar-local-nombre">Gaona 3619</span>
+    <span style="color:#666">▾</span>
+  </div>
+</div>
+
+<div class="content" id="main-content"><div class="loading">Conectando...</div></div>
+<div id="modal-container"></div>
+<div id="pin-container"></div>
+
+<script>
+const SUPABASE_URL = 'https://dksoqjmlrqwuarstbhrv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRrc29xam1scnF3dWFyc3RiaHJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2Nzg4MTEsImV4cCI6MjA5MzI1NDgxMX0.v2SQErOn9oflnkUi21TvVH1cci-xKnEd6Dl82Vnry4I';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ═══ CONFIGURACIÓN ════════════════════════════════════════════
+const PIN_EMPLEADO = '1234';  // ← empleados (crear órdenes/clientes)
+const PIN_DUENO    = '9999';  // ← dueño (editar/borrar stock)
+
+const LOCALES = {
+  'gaona3619':  { nombre:'Gaona 3619',  full:'Av. Gaona 3619',      dot:'🔴', color:'#C0392B', cls:'local-3619',      selcls:'sel-3619'      },
+  'gaona3391':  { nombre:'Gaona 3391',  full:'Av. Gaona 3391',      dot:'🔵', color:'#2980B9', cls:'local-3391',      selcls:'sel-3391'      },
+  'avellaneda': { nombre:'Avellaneda',  full:'Av. Avellaneda 4140', dot:'🟢', color:'#27AE60', cls:'local-avellaneda',selcls:'sel-avellaneda'},
+};
+
+const ESTADOS = ['recibido','en proceso','listo','entregado'];
+const ESTADO_LABELS = {recibido:'Recibido','en proceso':'En proceso',listo:'Listo',entregado:'Entregado'};
+
+const SERVICIOS_PREDEFINIDOS = [
+  'Reparación de pinchazo','Cambio de cubierta','Balanceo','Alineación',
+  'Cambio de válvula','Inflado con nitrógeno','Rotación de cubiertas',
+  'Desmontaje y montaje','Revisión general','Reparación de llanta',
+];
+
+const ERRORES = {
+  'row-level security':'Sin permiso. Desactivá RLS en Supabase.',
+  'violates foreign key':'El registro tiene datos relacionados y no se puede eliminar.',
+  'duplicate key':'Ya existe un registro con ese valor (ej: patente duplicada).',
+  'null value in column':'Falta completar un campo obligatorio.',
+  'JWT expired':'La sesión expiró. Recargá la página.',
+  'Failed to fetch':'Sin conexión. Verificá tu red.',
+};
+function traducirError(msg=''){
+  for(const [k,v] of Object.entries(ERRORES)) if(msg.includes(k)) return v;
+  return 'Ocurrió un error inesperado. Intentá de nuevo.';
+}
+
+let state = {
+  tab:'dashboard', localActual:'gaona3619',
+  clientes:[], vehiculos:[], ordenes:[], stock:[], ordenInsumos:[],
+  searchCliente:'', searchOrden:'', searchStock:'', filtroStockLocal:'todos',
+  loading:false, error:null,
+  pinEmpleadoOk:false, pinDuenoOk:false,
+};
+
+// ═══ LOCAL ════════════════════════════════════════════════════
+function localInfo(id){ return LOCALES[id]||LOCALES['gaona3619']; }
+function setLocal(id){
+  state.localActual=id;
+  const l=localInfo(id);
+  document.getElementById('topbar-local-dot').textContent=l.dot;
+  document.getElementById('topbar-local-nombre').textContent=l.nombre;
+  closeModal(); render();
+}
+function showCambiarLocal(){
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:360px">
+      <div class="modal-title">Seleccioná tu local</div>
+      <div class="local-selector">
+        ${Object.entries(LOCALES).map(([id,l])=>`
+          <div class="local-opt ${state.localActual===id?l.selcls:''}" onclick="setLocal('${id}')">
+            <div style="font-size:20px;margin-bottom:4px">${l.dot}</div>
+            <div style="font-size:10px">GOMERÍA J&Y</div>
+            <div>${l.full}</div>
+          </div>`).join('')}
+      </div>
+      <button class="btn" style="width:100%" onclick="closeModal()">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+// ═══ PIN ══════════════════════════════════════════════════════
+let _pinBuf='', _pinCb=null, _pinNivel='empleado';
+
+function showPin(nivel, callback){
+  // nivel: 'empleado' | 'dueno'
+  if(nivel==='empleado' && state.pinEmpleadoOk){ callback(); return; }
+  if(nivel==='dueno'    && state.pinDuenoOk)   { callback(); return; }
+  _pinBuf=''; _pinCb=callback; _pinNivel=nivel;
+  const titulo = nivel==='dueno' ? '🔐 Acceso exclusivo dueño' : '🔒 Zona restringida';
+  const sub    = nivel==='dueno' ? 'Ingresá el PIN del dueño para editar el stock' : 'Ingresá el PIN para continuar';
+  document.getElementById('pin-container').innerHTML=`
+  <div class="pin-overlay">
+    <div class="pin-box">
+      <div class="pin-title">${titulo}</div>
+      <div class="pin-sub">${sub}</div>
+      <div class="pin-dots">
+        ${[0,1,2,3].map(i=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
+      </div>
+      <div class="pin-grid">
+        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
+          <button class="pin-btn ${n==='⌫'?'del':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
+      </div>
+      <div class="pin-error" id="pin-error"></div>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="closePinScreen()">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+window.pinPress=function(val){
+  if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
+  if(val===''||_pinBuf.length>=4) return;
+  _pinBuf+=val; updatePinDots();
+  if(_pinBuf.length===4){
+    setTimeout(()=>{
+      const correcto = _pinNivel==='dueno' ? PIN_DUENO : PIN_EMPLEADO;
+      if(_pinBuf===correcto){
+        if(_pinNivel==='dueno')    state.pinDuenoOk=true;
+        if(_pinNivel==='empleado') state.pinEmpleadoOk=true;
+        closePinScreen();
+        if(_pinCb) _pinCb();
+      } else {
+        _pinBuf=''; updatePinDots();
+        const el=document.getElementById('pin-error');
+        if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
+      }
+    },200);
+  }
+};
+function updatePinDots(){ for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);if(d)d.classList.toggle('filled',i<_pinBuf.length);} }
+function closePinScreen(){ document.getElementById('pin-container').innerHTML=''; }
+
+// ═══ DATOS ════════════════════════════════════════════════════
+async function loadAll(){
+  state.loading=true; render();
+  try {
+    const [c,v,o,s,oi]=await Promise.all([
+      db.from('clientes').select('*').order('nombre'),
+      db.from('vehiculos').select('*'),
+      db.from('ordenes').select('*').order('fecha',{ascending:false}),
+      db.from('stock').select('*').order('nombre'),
+      db.from('orden_insumos').select('*'),
+    ]);
+    if(c.error) throw c.error;
+    state.clientes=c.data||[]; state.vehiculos=v.data||[];
+    state.ordenes=o.data||[]; state.stock=s.data||[];
+    state.ordenInsumos=oi.data||[]; state.error=null;
+  } catch(e){ state.error=traducirError(e.message||''); }
+  state.loading=false; render();
+}
+
+function setTab(t){
+  state.tab=t;
+  document.querySelectorAll('.nav button').forEach((b,i)=>b.classList.toggle('active',['dashboard','ordenes','clientes','stock'][i]===t));
+  render();
+}
+
+function badgeHTML(estado){
+  const cls={'recibido':'recibido','en proceso':'proceso','listo':'listo','entregado':'entregado'}[estado]||'recibido';
+  return `<span class="badge badge-${cls}">${ESTADO_LABELS[estado]||estado}</span>`;
+}
+function localBadge(localId){
+  const l=localInfo(localId);
+  return `<span style="font-size:11px;font-weight:600;color:${l.color}">${l.dot} ${l.nombre}</span>`;
+}
+function getVehiculo(id){return state.vehiculos.find(x=>x.id===id)}
+function getCliente(vId){const v=getVehiculo(vId);return v?state.clientes.find(x=>x.id===v.cliente_id):null}
+function getStock(id){return state.stock.find(x=>x.id===id)}
+function formatMoney(n){return '$'+(n||0).toLocaleString('es-AR')}
+
+function render(){
+  const mc=document.getElementById('main-content'); if(!mc) return;
+  if(state.loading){mc.innerHTML='<div class="loading">Cargando...</div>';return;}
+  if(state.error){mc.innerHTML=`<div class="error-msg">${state.error}</div><button class="btn" onclick="loadAll()" style="margin-top:8px">Reintentar</button>`;return;}
+  const map={dashboard:renderDashboard,ordenes:renderOrdenes,clientes:renderClientes,stock:renderStock};
+  mc.innerHTML=(map[state.tab]||renderDashboard)();
+  if(state.tab==='stock') renderStockItems();
+}
+
+// ═══ DASHBOARD ════════════════════════════════════════════════
+function ordenCardHTML(o){
+  const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+  const servicios=(o.servicios||[]).join(', ');
+  const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
+  const l=localInfo(o.local);
+  return `<div class="card ${l.cls}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+      <div class="row">
+        <span style="font-weight:700">#${o.id.slice(-4)}</span>
+        ${badgeHTML(o.estado)}
+        <span class="placa">${v?v.patente:'?'}</span>
+        <span>${c?c.nombre:'—'}</span>
+      </div>
+      <div class="row">
+        <span style="font-size:12px;color:#888">${o.fecha}</span>
+        <button class="btn btn-sm" onclick="showOrdenDetalle('${o.id}')">Ver</button>
+        ${sigEstado?`<button class="btn btn-sm btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:4px">${localBadge(o.local)}<span style="font-size:12px;color:#888">${servicios||'Sin servicios'}</span></div>
+    <div style="font-size:14px;font-weight:700">${formatMoney(o.total)}</div>
+  </div>`;
+}
+
+function renderDashboard(){
+  const activas=state.ordenes.filter(o=>o.estado!=='entregado').length;
+  const hoy=new Date().toISOString().slice(0,10);
+  const hoyCount=state.ordenes.filter(o=>o.fecha===hoy&&o.local===state.localActual).length;
+  const totalMes=state.ordenes.filter(o=>o.local===state.localActual).reduce((s,o)=>s+(o.total||0),0);
+  const stockBajo=state.stock.filter(s=>s.local===state.localActual&&s.cantidad<=s.minimo).length;
+  const pendientes=state.ordenes.filter(o=>o.estado!=='entregado'&&o.local===state.localActual);
+  const l=localInfo(state.localActual);
+  return `
+  <div style="margin-bottom:14px">
+    <div style="font-size:12px;color:#888;margin-bottom:2px">Mostrando datos de</div>
+    <div style="font-size:16px;font-weight:700">${l.dot} GOMERÍA J&Y — ${l.full}</div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-num">${activas}</div><div class="stat-lbl">Activas (todos)</div></div>
+    <div class="stat-card"><div class="stat-num">${hoyCount}</div><div class="stat-lbl">Hoy en este local</div></div>
+    <div class="stat-card"><div class="stat-num" style="font-size:15px">${formatMoney(totalMes)}</div><div class="stat-lbl">Total este local</div></div>
+    <div class="stat-card"><div class="stat-num ${stockBajo>0?'stock-low':''}">${stockBajo}</div><div class="stat-lbl">Stock bajo mínimo</div></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:15px;font-weight:700">Órdenes activas — ${l.nombre}</div>
+    <button class="btn btn-primary btn-sm" onclick="showPin('empleado',()=>showNuevaOrden())">+ Nueva orden</button>
+  </div>
+  ${pendientes.length===0?'<div class="empty">No hay órdenes activas en este local</div>':pendientes.map(o=>ordenCardHTML(o)).join('')}`;
+}
+
+// ═══ ÓRDENES ══════════════════════════════════════════════════
+function renderOrdenes(){
+  const q=state.searchOrden.toLowerCase();
+  const filtradas=state.ordenes.filter(o=>{
+    if(!q) return true;
+    const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+    return (v&&v.patente.toLowerCase().includes(q))||(c&&c.nombre.toLowerCase().includes(q));
+  });
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700">Todas las órdenes</div>
+    <button class="btn btn-primary btn-sm" onclick="showPin('empleado',()=>showNuevaOrden())">+ Nueva orden</button>
+  </div>
+  <div class="search-bar">
+    <input class="input" placeholder="Buscar por patente o nombre..." value="${state.searchOrden}" oninput="state.searchOrden=this.value;render()">
+  </div>
+  <div class="row" style="margin-bottom:10px;flex-wrap:wrap">
+    ${Object.entries(LOCALES).map(([id,l])=>`
+      <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:${l.color}20;color:${l.color};font-weight:600;cursor:pointer" onclick="state.searchOrden='${l.nombre}';render()">
+        ${l.dot} ${l.nombre}</span>`).join('')}
+    <span style="font-size:12px;padding:4px 10px;border-radius:20px;background:#f5f5f0;color:#888;cursor:pointer" onclick="state.searchOrden='';render()">Ver todos</span>
+  </div>
+  ${filtradas.length===0?'<div class="empty">No se encontraron órdenes</div>':filtradas.map(o=>ordenCardHTML(o)).join('')}`;
+}
+
+// ═══ CLIENTES ═════════════════════════════════════════════════
+function renderClientes(){
+  const q=state.searchCliente.toLowerCase();
+  const filtrados=state.clientes.filter(c=>{
+    if(!q) return true;
+    const vehs=state.vehiculos.filter(v=>v.cliente_id===c.id);
+    return c.nombre.toLowerCase().includes(q)||c.telefono.includes(q)||vehs.some(v=>v.patente.toLowerCase().includes(q));
+  });
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700">Clientes</div>
+    <button class="btn btn-primary btn-sm" onclick="showPin('empleado',()=>showNuevoCliente())">+ Nuevo cliente</button>
+  </div>
+  <div class="search-bar">
+    <input class="input" placeholder="Buscar por nombre, teléfono o patente..." value="${state.searchCliente}" oninput="state.searchCliente=this.value;render()">
+  </div>
+  ${filtrados.length===0?'<div class="empty">No se encontraron clientes</div>':filtrados.map(c=>{
+    const vehs=state.vehiculos.filter(v=>v.cliente_id===c.id);
+    const ords=state.ordenes.filter(o=>vehs.map(v=>v.id).includes(o.vehiculo_id));
+    return `<div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><div style="font-weight:700;font-size:14px">${c.nombre}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${c.telefono}</div></div>
+        <button class="btn btn-sm" onclick="showClienteDetalle('${c.id}')">Ver historial</button>
+      </div>
+      <hr class="divider">
+      <div class="row">
+        <span class="label">Vehículos:</span>
+        ${vehs.map(v=>`<span class="placa">${v.patente}</span>`).join('')||'ninguno'}
+        <span class="label" style="margin-left:8px">Órdenes: ${ords.length}</span>
+      </div>
+    </div>`;
+  }).join('')}`;
+}
+
+// ═══ STOCK ════════════════════════════════════════════════════
+function renderStock(){
+  const q=state.searchStock.toLowerCase();
+  const filtroLocal=state.filtroStockLocal;
+
+  // nombres únicos filtrados por búsqueda
+  let nombresUnicos=[...new Set(state.stock.map(s=>s.nombre))].sort();
+  if(q) nombresUnicos=nombresUnicos.filter(n=>n.toLowerCase().includes(q));
+
+  // si hay filtro de local, mostrar solo los que tienen ese local
+  if(filtroLocal!=='todos'){
+    nombresUnicos=nombresUnicos.filter(n=>state.stock.some(s=>s.nombre===n&&s.local===filtroLocal));
+  }
+
+  const stockBajoCount=state.stock.filter(s=>(filtroLocal==='todos'||s.local===filtroLocal)&&s.cantidad<=s.minimo).length;
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700">Stock — todos los locales</div>
+    <div class="row">
+      <button class="btn btn-primary btn-sm" onclick="showPin('dueno',()=>showNuevoInsumo())">+ Agregar insumo</button>
+      <button class="btn btn-yellow btn-sm" onclick="showPin('dueno',()=>showEditorStock())">✏️ Editar stock</button>
+    </div>
+  </div>
+
+  ${stockBajoCount>0?`<div class="error-msg" style="margin-bottom:12px">⚠️ Hay ${stockBajoCount} insumo${stockBajoCount>1?'s':''} bajo el mínimo.</div>`:''}
+
+  <!-- Buscador -->
+  <div class="search-bar">
+    <input class="input" id="stock-search-input" placeholder="Buscar insumo..." value="${state.searchStock}" oninput="filtrarStock(this.value)">
+  </div>
+
+  <!-- Filtros por local -->
+  <div class="stock-filters">
+    <div class="filter-chip ${filtroLocal==='todos'?'active':''}" onclick="state.filtroStockLocal='todos';renderStockItems()">Todos</div>
+    ${Object.entries(LOCALES).map(([id,l])=>`
+      <div class="filter-chip ${filtroLocal===id?'active':''}" onclick="state.filtroStockLocal='${id}';renderStockItems()">
+        ${l.dot} ${l.nombre}
+      </div>`).join('')}
+  </div>
+
+  <div id="stock-items-container"></div>`;
+}
+
+window.filtrarStock = function(val) {
+  state.searchStock = val;
+  renderStockItems();
+};
+
+function renderStockItems() {
+  const el = document.getElementById('stock-items-container');
+  if(!el) return;
+  const q = state.searchStock.toLowerCase();
+  const filtroLocal = state.filtroStockLocal;
+  let nombresUnicos = [...new Set(state.stock.map(s=>s.nombre))].sort();
+  if(q) nombresUnicos = nombresUnicos.filter(n=>n.toLowerCase().includes(q));
+  if(filtroLocal!=='todos') nombresUnicos = nombresUnicos.filter(n=>state.stock.some(s=>s.nombre===n&&s.local===filtroLocal));
+  if(nombresUnicos.length===0){el.innerHTML='<div class="empty">No se encontraron insumos</div>';return;}
+  el.innerHTML = nombresUnicos.map(nombre=>{
+    const items=state.stock.filter(s=>s.nombre===nombre);
+    const localesAMostrar=filtroLocal==='todos'?Object.keys(LOCALES):[filtroLocal];
+    const totalQty=items.reduce((s,i)=>s+i.cantidad,0);
+    return `<div class="card">
+      <div style="font-weight:700;font-size:13px;margin-bottom:8px">${nombre}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${localesAMostrar.map(lid=>{
+          const l=localInfo(lid);
+          const it=items.find(i=>i.local===lid);
+          const qty=it?it.cantidad:0;
+          const bajo=it&&qty<=it.minimo;
+          return `<div style="background:${bajo?'#FCEBEB':l.color+'15'};border:1px solid ${bajo?'#F09595':l.color+'40'};border-radius:8px;padding:8px 12px;min-width:110px">
+            <div style="font-size:11px;font-weight:600;color:${l.color}">${l.dot} ${l.nombre}</div>
+            <div style="font-size:20px;font-weight:700;color:${bajo?'#C0392B':'#1a1a1a'};margin-top:2px">${qty}</div>
+            <div style="font-size:11px;color:#888">${it?it.unidad:'—'}${bajo?' · ⚠️ bajo':''}</div>
+          </div>`;
+        }).join('')}
+        ${filtroLocal==='todos'?`<div style="background:#f5f5f0;border:1px dashed #ddd;border-radius:8px;padding:8px 12px;min-width:70px;display:flex;align-items:center;justify-content:center;flex-direction:column">
+          <div style="font-size:11px;color:#888">Total</div>
+          <div style="font-size:20px;font-weight:700">${totalQty}</div>
+        </div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  // mantener foco en el buscador
+  const inp = document.getElementById('stock-search-input');
+  if(inp && document.activeElement !== inp) { /* no robar foco */ }
+}
+
+// ═══ EDITOR DE STOCK (solo dueño) ════════════════════════════
+function showEditorStock(){
+  const nombresUnicos=[...new Set(state.stock.map(s=>s.nombre))].sort();
+  // deep copy para editar sin afectar el state hasta confirmar
+  window._stockEdit = JSON.parse(JSON.stringify(state.stock));
+
+  function renderEditorItems(filtro=''){
+    const q=filtro.toLowerCase();
+    const nombres=nombresUnicos.filter(n=>!q||n.toLowerCase().includes(q));
+    return nombres.map(nombre=>{
+      return `<div style="margin-bottom:12px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px">${nombre}</div>
+        ${Object.entries(LOCALES).map(([lid,l])=>{
+          const it=window._stockEdit.find(s=>s.nombre===nombre&&s.local===lid);
+          if(!it) return `<div style="font-size:12px;color:#ccc;padding:4px 0">${l.dot} ${l.nombre}: no cargado</div>`;
+          return `<div class="stock-item-editor">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:${l.color}">${l.dot} ${l.nombre}</div>
+              <div style="font-size:11px;color:#888">mín: ${it.minimo} ${it.unidad}</div>
+            </div>
+            <div class="qty-control">
+              <button class="qty-btn" onclick="cambiarCantidad('${it.id}',-1)">−</button>
+              <div class="qty-val" id="qty-${it.id}">${it.cantidad}</div>
+              <button class="qty-btn" onclick="cambiarCantidad('${it.id}',1)">+</button>
+              <input class="input" type="number" value="${it.cantidad}" style="width:60px;margin-left:4px;text-align:center"
+                onchange="setCantidadDirecta('${it.id}',this.value)">
+              <button class="btn-danger" onclick="confirmarBorrarInsumo('${it.id}','${nombre}','${l.nombre}')">🗑</button>
+            </div>
+          </div>`;
+        }).join('')}
+        <hr style="border:none;border-top:1px solid #f0f0e8;margin-top:8px">
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()" style="max-width:580px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">✏️ Editor de stock</div>
+        <span style="font-size:11px;background:#FDD835;padding:3px 8px;border-radius:6px;font-weight:700">Modo dueño</span>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:12px">Ajustá las cantidades o eliminá insumos. Los cambios se guardan al hacer clic en "Guardar cambios".</div>
+      <div class="search-bar">
+        <input class="input" placeholder="Buscar insumo..." oninput="document.getElementById('editor-items').innerHTML=renderEditorItemsFn(this.value)">
+      </div>
+      <div id="editor-items" style="max-height:60vh;overflow-y:auto">${renderEditorItems()}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarCambiosStock()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>`;
+
+  // exponer la función para poder llamarla desde el input
+  window.renderEditorItemsFn = renderEditorItems;
+}
+
+window.cambiarCantidad=function(id, delta){
+  const it=window._stockEdit.find(s=>s.id===id); if(!it) return;
+  it.cantidad=Math.max(0,it.cantidad+delta);
+  const el=document.getElementById('qty-'+id);
+  if(el) el.textContent=it.cantidad;
+  // actualizar también el input de texto
+  const inputs=document.querySelectorAll(`input[onchange*="${id}"]`);
+  inputs.forEach(inp=>inp.value=it.cantidad);
+};
+
+window.setCantidadDirecta=function(id, val){
+  const it=window._stockEdit.find(s=>s.id===id); if(!it) return;
+  it.cantidad=Math.max(0,parseInt(val)||0);
+  const el=document.getElementById('qty-'+id);
+  if(el) el.textContent=it.cantidad;
+};
+
+window.confirmarBorrarInsumo=function(id, nombre, localNombre){
+  if(!confirm(`¿Borrar "${nombre}" de ${localNombre}? Esta acción no se puede deshacer.`)) return;
+  window._stockEdit=window._stockEdit.filter(s=>s.id!==id);
+  // refrescar el editor
+  const el=document.getElementById('editor-items');
+  if(el&&window.renderEditorItemsFn) el.innerHTML=window.renderEditorItemsFn('');
+};
+
+window.guardarCambiosStock=async function(){
+  const btn=document.querySelector('#modal-container .btn-primary');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+
+  // IDs que quedaron en _stockEdit
+  const idsRestantes=window._stockEdit.map(s=>s.id);
+  // IDs que estaban antes
+  const idsOriginales=state.stock.map(s=>s.id);
+  // a borrar
+  const aBorrar=idsOriginales.filter(id=>!idsRestantes.includes(id));
+
+  let errores=[];
+
+  // borrar eliminados
+  for(const id of aBorrar){
+    const {error}=await db.from('stock').delete().eq('id',id);
+    if(error) errores.push(traducirError(error.message));
+  }
+
+  // actualizar cantidades modificadas
+  for(const it of window._stockEdit){
+    const original=state.stock.find(s=>s.id===it.id);
+    if(original&&original.cantidad!==it.cantidad){
+      const {error}=await db.from('stock').update({cantidad:it.cantidad}).eq('id',it.id);
+      if(error) errores.push(traducirError(error.message));
+    }
+  }
+
+  if(errores.length>0){
+    alert('Algunos cambios no se pudieron guardar:\n'+errores.join('\n'));
+  }
+
+  await loadAll();
+  closeModal();
+};
+
+// ═══ AVANZAR ESTADO ═══════════════════════════════════════════
+async function avanzarEstado(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const idx=ESTADOS.indexOf(o.estado);
+  if(idx>=ESTADOS.length-1) return;
+  const {error}=await db.from('ordenes').update({estado:ESTADOS[idx+1],updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert(traducirError(error.message));return;}
+  o.estado=ESTADOS[idx+1]; closeModal(); render();
+}
+
+// ═══ NUEVA ORDEN ══════════════════════════════════════════════
+function showNuevaOrden(){
+  window._serviciosSel=[]; window._insumosSel=[]; window._ncVisible=false;
+  const clienteOpts=state.clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  const stockLocal=state.stock.filter(s=>s.local===state.localActual);
+  const stockOpts=stockLocal.map(s=>`<option value="${s.id}">${s.nombre} (${s.cantidad})</option>`).join('');
+  const chipsHTML=SERVICIOS_PREDEFINIDOS.map(s=>`<div class="servicio-chip" onclick="toggleServicio(this,'${s.replace(/'/g,"\\'")}')">${s}</div>`).join('');
+  const l=localInfo(state.localActual);
+
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Nueva orden de trabajo</div>
+      <div id="orden-error"></div>
+      <div style="background:${l.color}15;border:1px solid ${l.color}40;border-radius:8px;padding:7px 12px;margin-bottom:14px;font-size:13px;font-weight:600;color:${l.color}">${l.dot} ${l.full}</div>
+
+      <div class="seccion-titulo">Cliente y vehículo</div>
+      <div class="form-group">
+        <div class="form-label">Cliente *</div>
+        <select class="select" id="m-cliente" onchange="actualizarVehiculos()">${clienteOpts}</select>
+        <button class="btn-link" style="margin-top:4px;text-align:left" onclick="toggleNuevoClienteEnOrden()">+ Registrar nuevo cliente</button>
+      </div>
+      <div id="nuevo-cliente-inline"></div>
+      <div class="form-group">
+        <div class="form-label">Vehículo *</div>
+        <select class="select" id="m-vehiculo"></select>
+      </div>
+
+      <hr class="divider">
+      <div class="seccion-titulo">Servicios realizados</div>
+      <div class="servicios-grid">${chipsHTML}</div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <input class="input" id="m-servicio-custom" placeholder="Otro servicio..." style="flex:1" onkeydown="if(event.key==='Enter')agregarServicioCustom()">
+        <button class="btn btn-sm" onclick="agregarServicioCustom()">+</button>
+      </div>
+      <div id="servicios-seleccionados" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px"></div>
+
+      <hr class="divider">
+      <div class="seccion-titulo">Insumos usados (${l.nombre})</div>
+      ${stockLocal.length===0?'<div style="font-size:12px;color:#888;margin-bottom:8px">No hay insumos en este local.</div>':`
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <select class="select" id="m-stock-sel" style="flex:1">${stockOpts}</select>
+        <input class="input" id="m-stock-qty" type="number" min="1" value="1" style="width:64px">
+        <button class="btn btn-sm" onclick="addInsumo()">+</button>
+      </div>`}
+      <div id="m-insumos-list"></div>
+
+      <hr class="divider">
+      <div class="form-group">
+        <div class="form-label">Total ($)</div>
+        <input class="input" type="number" id="m-total" placeholder="Ej: 15000">
+      </div>
+      <div class="form-group">
+        <div class="form-label">Notas</div>
+        <input class="input" id="m-notas" placeholder="Observaciones opcionales...">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-orden" onclick="guardarOrden()">Guardar orden</button>
+      </div>
+    </div>
+  </div>`;
+  actualizarVehiculos();
+}
+
+window.toggleServicio=function(el,nombre){
+  const idx=window._serviciosSel.indexOf(nombre);
+  if(idx>=0){window._serviciosSel.splice(idx,1);el.classList.remove('selected');}
+  else{window._serviciosSel.push(nombre);el.classList.add('selected');}
+  renderServiciosSel();
+};
+window.agregarServicioCustom=function(){
+  const inp=document.getElementById('m-servicio-custom');
+  if(!inp||!inp.value.trim()) return;
+  window._serviciosSel.push(inp.value.trim()); inp.value=''; renderServiciosSel();
+};
+function renderServiciosSel(){
+  const el=document.getElementById('servicios-seleccionados'); if(!el) return;
+  el.innerHTML=window._serviciosSel.map((s,i)=>`<span class="tag">${s}<span class="tag-x" onclick="quitarServicio(${i})">×</span></span>`).join('');
+}
+window.quitarServicio=function(i){
+  const s=window._serviciosSel[i]; window._serviciosSel.splice(i,1);
+  document.querySelectorAll('.servicio-chip').forEach(ch=>{if(ch.textContent===s)ch.classList.remove('selected');});
+  renderServiciosSel();
+};
+window.toggleNuevoClienteEnOrden=function(){
+  window._ncVisible=!window._ncVisible;
+  const el=document.getElementById('nuevo-cliente-inline'); if(!el) return;
+  if(window._ncVisible){
+    el.innerHTML=`<div class="mini-form">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">Nuevo cliente</div>
+      <div class="grid2">
+        <div class="form-group"><div class="form-label">Nombre *</div><input class="input" id="nc2-nombre" placeholder="Juan Pérez"></div>
+        <div class="form-group"><div class="form-label">Teléfono *</div><input class="input" id="nc2-tel" placeholder="11-1234-5678"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Email</div><input class="input" id="nc2-email" placeholder="juan@mail.com"></div>
+      <div class="seccion-titulo">Vehículo</div>
+      <div class="grid3">
+        <div class="form-group"><div class="form-label">Patente *</div><input class="input" id="nc2-pat" placeholder="AB 123 CD"></div>
+        <div class="form-group"><div class="form-label">Marca</div><input class="input" id="nc2-marca" placeholder="Ford"></div>
+        <div class="form-group"><div class="form-label">Modelo</div><input class="input" id="nc2-modelo" placeholder="Focus 2020"></div>
+      </div>
+      <div id="nc2-error"></div>
+      <button class="btn btn-primary btn-sm" onclick="guardarClienteDesdeOrden()">Guardar y continuar</button>
+    </div>`;
+  } else { el.innerHTML=''; }
+};
+window.guardarClienteDesdeOrden=async function(){
+  const nombre=document.getElementById('nc2-nombre')?.value.trim();
+  const telefono=document.getElementById('nc2-tel')?.value.trim();
+  const email=document.getElementById('nc2-email')?.value.trim();
+  const patente=document.getElementById('nc2-pat')?.value.trim();
+  const marca=document.getElementById('nc2-marca')?.value.trim();
+  const modelo=document.getElementById('nc2-modelo')?.value.trim();
+  const errEl=document.getElementById('nc2-error');
+  if(!nombre||!telefono){if(errEl)errEl.innerHTML='<div class="error-msg" style="margin-top:8px">Nombre y teléfono son obligatorios</div>';return;}
+  const {data:nc,error}=await db.from('clientes').insert({nombre,telefono,email:email||null}).select().single();
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg" style="margin-top:8px">${traducirError(error.message)}</div>`;return;}
+  let nv=null;
+  if(patente){const {data}=await db.from('vehiculos').insert({cliente_id:nc.id,patente,marca:marca||'',modelo:modelo||''}).select().single();nv=data;}
+  state.clientes.push(nc); if(nv) state.vehiculos.push(nv);
+  const sel=document.getElementById('m-cliente');
+  if(sel){const opt=document.createElement('option');opt.value=nc.id;opt.textContent=nc.nombre;opt.selected=true;sel.appendChild(opt);}
+  actualizarVehiculos();
+  window._ncVisible=false;
+  const el=document.getElementById('nuevo-cliente-inline');
+  if(el) el.innerHTML=`<div class="success-msg" style="margin-bottom:10px">✅ Cliente "${nc.nombre}" registrado.</div>`;
+};
+function actualizarVehiculos(){
+  const cId=document.getElementById('m-cliente')?.value;
+  const vehs=state.vehiculos.filter(v=>v.cliente_id===cId);
+  const sel=document.getElementById('m-vehiculo');
+  if(sel) sel.innerHTML=vehs.length?vehs.map(v=>`<option value="${v.id}">${v.patente} — ${v.marca} ${v.modelo}</option>`).join(''):'<option value="">— Sin vehículos —</option>';
+}
+window.addInsumo=function(){
+  const sel=document.getElementById('m-stock-sel');
+  const qty=parseInt(document.getElementById('m-stock-qty')?.value)||1;
+  if(!sel||!sel.value) return;
+  const stockId=sel.value;
+  const exists=window._insumosSel.findIndex(x=>x.stockId===stockId);
+  if(exists>=0) window._insumosSel[exists].qty+=qty;
+  else window._insumosSel.push({stockId,qty});
+  renderInsumosList();
+};
+function renderInsumosList(){
+  const el=document.getElementById('m-insumos-list'); if(!el) return;
+  el.innerHTML=window._insumosSel.map((ins,i)=>{
+    const s=getStock(ins.stockId);
+    return `<div class="order-item-row"><span>${s?s.nombre:'?'}</span>
+      <span>${ins.qty} ${s?s.unidad:'u'} <span style="cursor:pointer;color:#aaa;margin-left:4px" onclick="window._insumosSel.splice(${i},1);renderInsumosList()">×</span></span></div>`;
+  }).join('');
+}
+window.guardarOrden=async function(){
+  const vId=document.getElementById('m-vehiculo')?.value;
+  const total=parseFloat(document.getElementById('m-total')?.value)||0;
+  const notas=document.getElementById('m-notas')?.value||'';
+  const errEl=document.getElementById('orden-error');
+  if(!vId||vId===''){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná un vehículo válido</div>';return;}
+  if(window._serviciosSel.length===0){if(errEl)errEl.innerHTML='<div class="error-msg">Seleccioná al menos un servicio</div>';return;}
+  const btn=document.getElementById('btn-guardar-orden');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {data:orden,error}=await db.from('ordenes').insert({
+    vehiculo_id:vId,estado:'recibido',servicios:window._serviciosSel,
+    total,notas,fecha:new Date().toISOString().slice(0,10),local:state.localActual
+  }).select().single();
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar orden';}return;}
+  for(const ins of window._insumosSel) await db.from('orden_insumos').insert({orden_id:orden.id,stock_id:ins.stockId,cantidad:ins.qty});
+  await loadAll(); closeModal();
+};
+
+// ═══ DETALLE ORDEN ════════════════════════════════════════════
+function showOrdenDetalle(id){
+  const o=state.ordenes.find(x=>x.id===id); if(!o) return;
+  const v=getVehiculo(o.vehiculo_id),c=getCliente(o.vehiculo_id);
+  const ins=state.ordenInsumos.filter(x=>x.orden_id===id);
+  const sigEstado=ESTADOS[ESTADOS.indexOf(o.estado)+1];
+  const l=localInfo(o.local);
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+        <div class="modal-title" style="margin:0">Orden #${id.slice(-4)}</div>
+        ${badgeHTML(o.estado)}
+      </div>
+      <div style="background:${l.color}15;border:1px solid ${l.color}40;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;color:${l.color};margin-bottom:12px">${l.dot} GOMERÍA J&Y — ${l.full}</div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div><div class="label">Cliente</div><div style="margin-top:2px;font-size:13px">${c?c.nombre:'—'}</div></div>
+        <div><div class="label">Teléfono</div><div style="margin-top:2px;font-size:13px">${c?c.telefono:'—'}</div></div>
+        <div><div class="label">Vehículo</div><div style="margin-top:2px;font-size:13px">${v?`${v.marca} ${v.modelo}`:''}</div></div>
+        <div><div class="label">Patente</div><div style="margin-top:2px"><span class="placa">${v?v.patente:'?'}</span></div></div>
+        <div><div class="label">Fecha</div><div style="margin-top:2px;font-size:13px">${o.fecha}</div></div>
+      </div>
+      <hr class="divider">
+      <div class="label" style="margin-bottom:6px">Servicios</div>
+      ${(o.servicios||[]).length?(o.servicios).map(s=>`<div style="font-size:13px;padding:3px 0">• ${s}</div>`).join(''):'<div style="font-size:12px;color:#888">Sin servicios</div>'}
+      ${ins.length?`<hr class="divider"><div class="label" style="margin-bottom:6px">Insumos</div>${ins.map(i=>{const s=getStock(i.stock_id);return`<div class="order-item-row"><span>${s?s.nombre:'?'}</span><span>${i.cantidad} ${s?s.unidad:'u'}</span></div>`;}).join('')}`:''}
+      ${o.notas?`<hr class="divider"><div class="label">Notas</div><div style="font-size:13px;margin-top:4px">${o.notas}</div>`:''}
+      <hr class="divider">
+      <div class="total-row"><span>Total</span><span>${formatMoney(o.total)}</span></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        ${sigEstado?`<button class="btn btn-yellow" onclick="showPin('empleado',()=>avanzarEstado('${o.id}'))">→ ${ESTADO_LABELS[sigEstado]}</button>`:''}
+        <button class="btn" onclick="closeModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══ HISTORIAL CLIENTE ════════════════════════════════════════
+function showClienteDetalle(id){
+  const c=state.clientes.find(x=>x.id===id);
+  const vehs=state.vehiculos.filter(v=>v.cliente_id===id);
+  const ords=state.ordenes.filter(o=>vehs.map(v=>v.id).includes(o.vehiculo_id)).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">${c.nombre}</div>
+      <div class="grid2" style="margin-bottom:12px">
+        <div><div class="label">Teléfono</div><div style="font-size:13px;margin-top:2px">${c.telefono}</div></div>
+        <div><div class="label">Email</div><div style="font-size:13px;margin-top:2px">${c.email||'—'}</div></div>
+      </div>
+      <hr class="divider">
+      <div class="label" style="margin-bottom:8px">Vehículos</div>
+      ${vehs.map(v=>`<div style="font-size:13px;margin-bottom:4px"><span class="placa">${v.patente}</span> — ${v.marca} ${v.modelo}</div>`).join('')||'<div style="font-size:12px;color:#888">Sin vehículos</div>'}
+      <hr class="divider">
+      <div class="label" style="margin-bottom:8px">Historial (${ords.length})</div>
+      ${ords.length===0?'<div style="font-size:12px;color:#888">Sin órdenes</div>':ords.map(o=>{
+        const v=getVehiculo(o.vehiculo_id),l=localInfo(o.local);
+        return `<div class="card ${l.cls}" style="margin-bottom:8px;padding:10px">
+          <div class="row" style="justify-content:space-between">
+            <div class="row"><span style="font-size:13px">#${o.id.slice(-4)}</span>${badgeHTML(o.estado)}${v?`<span class="placa">${v.patente}</span>`:''}</div>
+            <span style="font-size:12px;color:#888">${o.fecha}</span>
+          </div>
+          <div style="font-size:11px;color:${l.color};font-weight:600;margin-top:4px">${l.dot} ${l.nombre}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${(o.servicios||[]).join(', ')||'Sin servicios'}</div>
+          <div style="font-size:13px;font-weight:700;margin-top:2px">${formatMoney(o.total)}</div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" onclick="closeModal()">Cerrar</button></div>
+    </div>
+  </div>`;
+}
+
+// ═══ NUEVO CLIENTE ════════════════════════════════════════════
+function showNuevoCliente(){
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Nuevo cliente</div>
+      <div id="cliente-error"></div>
+      <div class="form-group"><div class="form-label">Nombre completo *</div><input class="input" id="nc-nombre" placeholder="Juan Pérez"></div>
+      <div class="form-group"><div class="form-label">Teléfono *</div><input class="input" id="nc-tel" placeholder="11-1234-5678"></div>
+      <div class="form-group"><div class="form-label">Email (opcional)</div><input class="input" id="nc-email" placeholder="juan@mail.com"></div>
+      <div class="seccion-titulo" style="margin-top:4px">Vehículo (opcional)</div>
+      <div class="grid3">
+        <div class="form-group"><div class="form-label">Patente</div><input class="input" id="nc-pat" placeholder="AB 123 CD"></div>
+        <div class="form-group"><div class="form-label">Marca</div><input class="input" id="nc-marca" placeholder="Ford"></div>
+        <div class="form-group"><div class="form-label">Modelo</div><input class="input" id="nc-modelo" placeholder="Focus 2020"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-cliente" onclick="guardarCliente()">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+}
+window.guardarCliente=async function(){
+  const nombre=document.getElementById('nc-nombre')?.value.trim();
+  const telefono=document.getElementById('nc-tel')?.value.trim();
+  const email=document.getElementById('nc-email')?.value.trim();
+  const patente=document.getElementById('nc-pat')?.value.trim();
+  const marca=document.getElementById('nc-marca')?.value.trim();
+  const modelo=document.getElementById('nc-modelo')?.value.trim();
+  const errEl=document.getElementById('cliente-error');
+  if(!nombre||!telefono){if(errEl)errEl.innerHTML='<div class="error-msg">Nombre y teléfono son obligatorios</div>';return;}
+  const btn=document.getElementById('btn-guardar-cliente');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {data:nc,error}=await db.from('clientes').insert({nombre,telefono,email:email||null}).select().single();
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+  if(patente) await db.from('vehiculos').insert({cliente_id:nc.id,patente,marca:marca||'',modelo:modelo||''});
+  await loadAll(); closeModal();
+};
+
+// ═══ NUEVO INSUMO ═════════════════════════════════════════════
+function showNuevoInsumo(){
+  const localOpts=Object.entries(LOCALES).map(([id,l])=>`<option value="${id}" ${id===state.localActual?'selected':''}>${l.dot} ${l.full}</option>`).join('');
+  document.getElementById('modal-container').innerHTML=`
+  <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Agregar insumo al stock</div>
+      <div id="insumo-error"></div>
+      <div class="form-group"><div class="form-label">Local *</div><select class="select" id="ni-local">${localOpts}</select></div>
+      <div class="form-group"><div class="form-label">Nombre del insumo *</div><input class="input" id="ni-nombre" placeholder="Cubierta 195/65 R15"></div>
+      <div class="grid3">
+        <div class="form-group"><div class="form-label">Cantidad</div><input class="input" type="number" id="ni-qty" value="0" min="0"></div>
+        <div class="form-group"><div class="form-label">Mínimo</div><input class="input" type="number" id="ni-min" value="2" min="0"></div>
+        <div class="form-group"><div class="form-label">Unidad</div><input class="input" id="ni-unidad" value="unidad"></div>
+      </div>
+      <div class="form-group"><div class="form-label">Costo unitario ($)</div><input class="input" type="number" id="ni-costo" placeholder="9500"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btn-guardar-insumo" onclick="guardarInsumo()">Guardar</button>
+      </div>
+    </div>
+  </div>`;
+}
+window.guardarInsumo=async function(){
+  const local=document.getElementById('ni-local')?.value;
+  const nombre=document.getElementById('ni-nombre')?.value.trim();
+  const cantidad=parseInt(document.getElementById('ni-qty')?.value)||0;
+  const minimo=parseInt(document.getElementById('ni-min')?.value)||0;
+  const unidad=document.getElementById('ni-unidad')?.value.trim()||'unidad';
+  const costo=parseFloat(document.getElementById('ni-costo')?.value)||0;
+  const errEl=document.getElementById('insumo-error');
+  if(!nombre){if(errEl)errEl.innerHTML='<div class="error-msg">El nombre es obligatorio</div>';return;}
+  const btn=document.getElementById('btn-guardar-insumo');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  const {error}=await db.from('stock').insert({nombre,cantidad,minimo,unidad,costo,local});
+  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+  await loadAll(); closeModal();
+};
+
+function closeModal(e){
+  if(e&&e.target!==e.currentTarget) return;
+  document.getElementById('modal-container').innerHTML='';
+}
+
+loadAll();
+</script>
+</body>
+</html>
