@@ -165,7 +165,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ═══ CONFIGURACIÓN ════════════════════════════════════════════
 const PIN_EMPLEADO = '1234';  // ← empleados (crear órdenes/clientes)
-const PIN_DUENO    = '9999';  // ← dueño (editar/borrar stock)
+const PIN_DUENO    = '6265';  // ← dueño (editar/borrar stock)
 
 const LOCALES = {
   'gaona3619':  { nombre:'Gaona 3619',  full:'Av. Gaona 3619',      dot:'🔴', color:'#C0392B', cls:'local-3619',      selcls:'sel-3619'      },
@@ -263,9 +263,12 @@ window.pinPress=function(val){
   if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
   if(val===''||_pinBuf.length>=8) return;
   _pinBuf+=val; updatePinDots();
-  // Intentar validar con delay solo si tiene al menos 6 dígitos (DNI mínimo)
+  // Intentar validar con delay
   clearTimeout(window._pinTimeout);
-  window._pinTimeout = setTimeout(()=>{ validarPin(); }, 600);
+  const minLen = _pinNivel==='dueno' ? 4 : 6;
+  if(_pinBuf.length >= minLen) {
+    window._pinTimeout = setTimeout(()=>{ validarPin(); }, 600);
+  }
 };
 
 function validarPin(){
