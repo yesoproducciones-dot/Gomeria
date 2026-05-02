@@ -130,7 +130,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
     <div class="banner-logo">
       <div class="banner-icon">🔧</div>
       <div>
-        <div class="banner-title">Gomería <span>J&Y</span></div>
+        <div class="banner-title">G<svg viewBox="0 0 36 36" style="width:0.85em;height:0.85em;vertical-align:-0.1em;display:inline-block" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="17" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1"/><circle cx="18" cy="18" r="13" fill="none" stroke="#FDD835" stroke-width="2.5"/><circle cx="18" cy="18" r="4.5" fill="#FDD835"/><line x1="18" y1="5" x2="18" y2="13.5" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="18" y1="22.5" x2="18" y2="31" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="18" x2="13.5" y2="18" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="22.5" y1="18" x2="31" y2="18" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="9.1" y1="9.1" x2="15.2" y2="15.2" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="20.8" y1="20.8" x2="26.9" y2="26.9" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="26.9" y1="9.1" x2="20.8" y2="15.2" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="15.2" y1="20.8" x2="9.1" y2="26.9" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/></svg>MERÍA <span>J&Y</span></div>
         <div class="banner-sub">⏰ 24 hs. · Sistema de gestión</div>
       </div>
     </div>
@@ -1444,15 +1444,23 @@ window.toggleEmpleado=async function(id, activo){
 
 window.eliminarCliente=async function(id, nombre){
   if(!confirm(`¿Eliminar a "${nombre}" y todo su historial? Esta acción no se puede deshacer.`)) return;
-  // Obtener vehículos del cliente
   const vehs=state.vehiculos.filter(v=>v.cliente_id===id).map(v=>v.id);
-  // Obtener órdenes de esos vehículos
   const ordIds=state.ordenes.filter(o=>vehs.includes(o.vehiculo_id)).map(o=>o.id);
-  // Borrar en cascada
-  for(const oid of ordIds) await db.from('orden_insumos').delete().eq('orden_id',oid);
-  if(ordIds.length) await db.from('ordenes').delete().in('id',ordIds);
-  if(vehs.length) await db.from('vehiculos').delete().in('id',vehs);
-  await db.from('clientes').delete().eq('id',id);
+  console.log('Eliminando cliente:', id, 'vehs:', vehs, 'ordenes:', ordIds);
+  for(const oid of ordIds){
+    const r1=await db.from('orden_insumos').delete().eq('orden_id',oid);
+    console.log('orden_insumos delete:', r1.error);
+  }
+  if(ordIds.length){
+    const r2=await db.from('ordenes').delete().in('id',ordIds);
+    console.log('ordenes delete:', r2.error);
+  }
+  if(vehs.length){
+    const r3=await db.from('vehiculos').delete().in('id',vehs);
+    console.log('vehiculos delete:', r3.error);
+  }
+  const r4=await db.from('clientes').delete().eq('id',id);
+  console.log('clientes delete:', r4.error);
   await loadAll(); render();
 };
 
