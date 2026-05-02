@@ -128,9 +128,82 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
 <div class="banner">
   <div class="banner-inner">
     <div class="banner-logo">
-      <div class="banner-icon">🔧</div>
+      <div class="banner-icon" style="display:none">🔧</div>
       <div>
-        <div class="banner-title">G<svg viewBox="0 0 36 36" style="width:0.85em;height:0.85em;vertical-align:-0.1em;display:inline-block" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="17" fill="#1a1a1a" stroke="#1a1a1a" stroke-width="1"/><circle cx="18" cy="18" r="13" fill="none" stroke="#FDD835" stroke-width="2.5"/><circle cx="18" cy="18" r="4.5" fill="#FDD835"/><line x1="18" y1="5" x2="18" y2="13.5" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="18" y1="22.5" x2="18" y2="31" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="18" x2="13.5" y2="18" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="22.5" y1="18" x2="31" y2="18" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="9.1" y1="9.1" x2="15.2" y2="15.2" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="20.8" y1="20.8" x2="26.9" y2="26.9" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="26.9" y1="9.1" x2="20.8" y2="15.2" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/><line x1="15.2" y1="20.8" x2="9.1" y2="26.9" stroke="#FDD835" stroke-width="2" stroke-linecap="round"/></svg>MERÍA <span>J&Y</span></div>
+        <div class="banner-title">G<svg viewBox="0 0 40 40" style="width:0.9em;height:0.9em;vertical-align:-0.12em;display:inline-block" xmlns="http://www.w3.org/2000/svg">
+  <!-- Neumático exterior -->
+  <circle cx="20" cy="20" r="19" fill="#1a1a1a"/>
+  <circle cx="20" cy="20" r="15.5" fill="#2a2a2a"/>
+  <!-- Llanta aluminio -->
+  <circle cx="20" cy="20" r="14.5" fill="url(#rim)"/>
+  <defs>
+    <radialGradient id="rim" cx="40%" cy="35%">
+      <stop offset="0%" stop-color="#e0e0e0"/>
+      <stop offset="60%" stop-color="#a0a0a0"/>
+      <stop offset="100%" stop-color="#707070"/>
+    </radialGradient>
+    <radialGradient id="hub" cx="40%" cy="35%">
+      <stop offset="0%" stop-color="#d0d0d0"/>
+      <stop offset="100%" stop-color="#888"/>
+    </radialGradient>
+  </defs>
+  <!-- 5 rayos -->
+  <g fill="#b0b0b0" stroke="#888" stroke-width="0.3">
+    <polygon points="20,7 22.5,17 17.5,17" fill="url(#spoke)"/>
+    <polygon points="31.4,13.4 22.8,19.5 24.5,14.7" fill="url(#spoke)"/>
+    <polygon points="27.3,30.2 19.8,22.5 24.8,21.2" fill="url(#spoke)"/>
+    <polygon points="12.7,30.2 20.2,22.5 15.2,21.2" fill="url(#spoke)"/>
+    <polygon points="8.6,13.4 17.2,19.5 15.5,14.7" fill="url(#spoke)"/>
+  </g>
+  <defs>
+    <linearGradient id="spoke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d8d8d8"/>
+      <stop offset="100%" stop-color="#888"/>
+    </linearGradient>
+  </defs>
+  <!-- Espacios entre rayos (oscuros) -->
+  <circle cx="20" cy="20" r="14.5" fill="none" stroke="#555" stroke-width="0.5"/>
+  <!-- Centro / buje -->
+  <circle cx="20" cy="20" r="4.5" fill="url(#hub)"/>
+  <circle cx="20" cy="20" r="2.5" fill="#666"/>
+  <circle cx="20" cy="20" r="1.2" fill="#aaa"/>
+  <!-- Textura neumático -->
+  <circle cx="20" cy="20" r="19" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="2.5,2" opacity="0.5"/>
+</svg>MERÍA <span>J&Y</span></div>
+        <div class="banner-icon" style="font-size:0">
+          <svg viewBox="0 0 40 40" style="width:38px;height:38px" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="19" fill="#1a1a1a"/>
+            <circle cx="20" cy="20" r="15.5" fill="#2a2a2a"/>
+            <circle cx="20" cy="20" r="14.5" fill="url(#rim2)"/>
+            <defs>
+              <radialGradient id="rim2" cx="40%" cy="35%">
+                <stop offset="0%" stop-color="#e0e0e0"/>
+                <stop offset="60%" stop-color="#a0a0a0"/>
+                <stop offset="100%" stop-color="#707070"/>
+              </radialGradient>
+              <radialGradient id="hub2" cx="40%" cy="35%">
+                <stop offset="0%" stop-color="#d0d0d0"/>
+                <stop offset="100%" stop-color="#888"/>
+              </radialGradient>
+              <linearGradient id="spoke2" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#d8d8d8"/>
+                <stop offset="100%" stop-color="#888"/>
+              </linearGradient>
+            </defs>
+            <g fill="url(#spoke2)" stroke="#888" stroke-width="0.3">
+              <polygon points="20,7 22.5,17 17.5,17"/>
+              <polygon points="31.4,13.4 22.8,19.5 24.5,14.7"/>
+              <polygon points="27.3,30.2 19.8,22.5 24.8,21.2"/>
+              <polygon points="12.7,30.2 20.2,22.5 15.2,21.2"/>
+              <polygon points="8.6,13.4 17.2,19.5 15.5,14.7"/>
+            </g>
+            <circle cx="20" cy="20" r="14.5" fill="none" stroke="#555" stroke-width="0.5"/>
+            <circle cx="20" cy="20" r="4.5" fill="url(#hub2)"/>
+            <circle cx="20" cy="20" r="2.5" fill="#666"/>
+            <circle cx="20" cy="20" r="1.2" fill="#aaa"/>
+            <circle cx="20" cy="20" r="19" fill="none" stroke="#333" stroke-width="1.5" stroke-dasharray="2.5,2" opacity="0.5"/>
+          </svg>
+        </div>
         <div class="banner-sub">⏰ 24 hs. · Sistema de gestión</div>
       </div>
     </div>
