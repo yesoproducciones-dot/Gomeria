@@ -108,6 +108,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f5f5f0;color:#1a
 .pin-btn{border:1px solid #ddd;border-radius:10px;padding:14px;font-size:18px;font-weight:600;cursor:pointer;background:#fff;transition:all .15s}
 .pin-btn:hover{background:#f5f5f0;border-color:#1a1a1a}
 .pin-btn.del{font-size:14px;color:#C0392B}
+.pin-btn.ok{background:#1a1a1a;color:#FDD835;font-size:14px;font-weight:700;border-color:#1a1a1a}
 .pin-error{color:#C0392B;font-size:12px;margin-top:8px;height:18px}
 /* STOCK EDITOR */
 .stock-item-editor{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #f0f0e8}
@@ -316,8 +317,8 @@ function showPin(nivel, callback){
         ${[...Array(maxDots)].map((_,i)=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
       </div>
       <div class="pin-grid">
-        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
-          <button class="pin-btn ${n==='⌫'?'del':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
+        ${[1,2,3,4,5,6,7,8,9,'⌫',0,'OK'].map(n=>`
+          <button class="pin-btn ${n==='⌫'?'del':n==='OK'?'ok':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
       </div>
       <div class="pin-error" id="pin-error"></div>
       <button class="btn" style="width:100%;margin-top:12px" onclick="closePinScreen()">Cancelar</button>
@@ -329,6 +330,7 @@ function showPin(nivel, callback){
 window.pinPress=function(val){
   const maxLen = _pinNivel==='dueno' ? 4 : 8;
   if(val==='⌫'){_pinBuf=_pinBuf.slice(0,-1);updatePinDots();return;}
+  if(val==='OK'){clearTimeout(window._pinTimeout);validarPin();return;}
   if(val===''||_pinBuf.length>=maxLen) return;
   _pinBuf+=val; updatePinDots();
   // Validar automáticamente al completar
@@ -989,8 +991,8 @@ function showPinOrden(callback){
         ${[...Array(maxDots)].map((_,i)=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
       </div>
       <div class="pin-grid">
-        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
-          <button class="pin-btn ${n==='⌫'?'del':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
+        ${[1,2,3,4,5,6,7,8,9,'⌫',0,'OK'].map(n=>`
+          <button class="pin-btn ${n==='⌫'?'del':n==='OK'?'ok':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
       </div>
       <div class="pin-error" id="pin-error"></div>
       <button class="btn" style="width:100%;margin-top:12px" onclick="closePinScreen()">Cancelar</button>
