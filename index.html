@@ -344,7 +344,6 @@ window.pinPress=function(val){
 };
 
 function validarPin(){
-  // Aceptar si tiene al menos 4 dígitos (PIN dueño) o 6 (DNI empleado)
   if(_pinBuf.length < 4) return;
   const correcto_dueno = _pinBuf === PIN_DUENO;
   const empleadoMatch = state.empleados.find(e=>e.activo && e.dni && e.dni===_pinBuf);
@@ -355,20 +354,13 @@ function validarPin(){
     state.empleadoActual=null;
     closePinScreen();
     if(_pinCb) _pinCb();
-  } else if(empleadoMatch){
+  } else if(empleadoMatch && _pinNivel!=='dueno'){
     state.pinEmpleadoOk=true;
     state.empleadoActual=empleadoMatch;
-    if(_pinNivel==='dueno'){
-      // un empleado no puede acceder a zona de dueño
-      _pinBuf=''; updatePinDots();
-      const el=document.getElementById('pin-error');
-      if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
-      return;
-    }
     closePinScreen();
     if(_pinCb) _pinCb();
-  } else if(_pinBuf.length >= 6) {
-    // Solo mostrar error si ya tiene suficientes dígitos
+  } else if(_pinBuf.length >= (_pinNivel==='dueno' ? 4 : 6)){
+    // Solo mostrar error si completó la longitud esperada
     _pinBuf=''; updatePinDots();
     const el=document.getElementById('pin-error');
     if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
@@ -1329,7 +1321,6 @@ function exportarOrdenPDF(id){
   const W=210, M=15;
   let y=M;
 
-  // Header amarillo
   doc.setFillColor(253,216,53);
   doc.rect(0,0,W,35,'F');
   doc.setFontSize(20); doc.setFont('helvetica','bold');
@@ -1345,34 +1336,31 @@ function exportarOrdenPDF(id){
   doc.setTextColor(26,26,26);
   doc.text(`ORDEN #${id.slice(-4)}`,W-M,22,{align:'right'});
   doc.setFontSize(9); doc.setFont('helvetica','normal');
-  doc.text(`Fecha: ${o.fecha}${o.hora?' — '+o.hora:''}`,W-M,28,{align:'right'});
+  doc.text(`Fecha: ${o.fecha}${o.hora?' - '+o.hora:''}`,W-M,28,{align:'right'});
 
   y=42;
-  // Datos cliente
   doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
   doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26);
   doc.text('DATOS DEL CLIENTE',M+2,y+5);
   y+=10;
   doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text(`Cliente: ${c?c.nombre:'—'}`,M,y);
-  doc.text(`Tel: ${c?c.telefono:'—'}`,M+80,y);
+  doc.text(`Cliente: ${c?c.nombre:'-'}`,M,y);
+  doc.text(`Tel: ${c?c.telefono:'-'}`,M+80,y);
   y+=6;
-  doc.text(`Vehículo: ${v?`${v.marca} ${v.modelo}`:'—'}`,M,y);
-  doc.text(`Patente: ${v?v.patente:'—'}`,M+80,y);
+  doc.text(`Vehiculo: ${v?`${v.marca} ${v.modelo}`:'-'}`,M,y);
+  doc.text(`Patente: ${v?v.patente:'-'}`,M+80,y);
   if(emp){y+=6;doc.text(`Empleado: ${emp.nombre}`,M,y);}
 
   y+=10;
-  // Servicios
   doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
   doc.setFont('helvetica','bold'); doc.setFontSize(8);
   doc.text('SERVICIOS REALIZADOS',M+2,y+5);
   y+=10;
   doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  (o.servicios||[]).forEach(s=>{doc.text(`• ${s}`,M+2,y);y+=5;});
+  (o.servicios||[]).forEach(s=>{doc.text(`- ${s}`,M+2,y);y+=5;});
   if(o.notas){y+=2;doc.setFont('helvetica','italic');doc.text(`Notas: ${o.notas}`,M,y);y+=5;doc.setFont('helvetica','normal');}
 
   y+=5;
-  // Total
   doc.setFillColor(26,26,26); doc.rect(M,y,W-2*M,10,'F');
   doc.setTextColor(253,216,53); doc.setFont('helvetica','bold'); doc.setFontSize(12);
   doc.text(`TOTAL: ${formatMoney(o.total)}`,M+2,y+7);
@@ -1380,9 +1368,20 @@ function exportarOrdenPDF(id){
   doc.text(`(${metodoPagoLabel(o.metodo_pago)})`,W-M-2,y+7,{align:'right'});
 
   doc.setTextColor(150,150,150); doc.setFontSize(7); doc.setFont('helvetica','normal');
-  doc.text('GOMERÍA J&Y · Av. Gaona 3391 / 3619 · Av. Avellaneda 4140 · Tel: 15 5829-5801',W/2,290,{align:'center'});
+  doc.text('GOMERIA J&Y - Av. Gaona 3391 / 3619 - Av. Avellaneda 4140 - Tel: 15 5829-5801',W/2,290,{align:'center'});
 
-  doc.save(`orden-${id.slice(-4)}-${c?c.nombre.replace(/\s/g,'-'):'cliente'}.pdf`);
+  // Guardar PDF
+  const nombreArchivo=`orden-${id.slice(-4)}-${c?c.nombre.replace(/\s/g,'-'):'cliente'}.pdf`;
+  doc.save(nombreArchivo);
+
+  // Abrir WhatsApp del cliente con aviso
+  const tel=(c?.telefono||'').replace(/\D/g,'');
+  if(tel){
+    setTimeout(()=>{
+      const msg=`Hola ${c?c.nombre:''}! Te enviamos el comprobante de tu orden #${id.slice(-4)} de GOMERÍA J&Y. Por favor adjuntá el PDF que se acaba de descargar. Gracias!`;
+      window.open(`https://wa.me/${tel.startsWith('54')?tel:'54'+tel}?text=${encodeURIComponent(msg)}`, '_blank');
+    }, 1000);
+  }
 }
 
 function enviarWhatsApp(id){
