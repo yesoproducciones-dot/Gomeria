@@ -278,30 +278,31 @@ window.pinPress=function(val){
 };
 
 function validarPin(){
-  const minLen = _pinNivel==='dueno' ? 4 : 6;
-  if(_pinBuf.length < minLen) return;
+  // Aceptar si tiene al menos 4 dígitos (PIN dueño) o 6 (DNI empleado)
+  if(_pinBuf.length < 4) return;
   const correcto_dueno = _pinBuf === PIN_DUENO;
-  const empleadoMatch = _pinNivel==='empleado'
-    ? state.empleados.find(e=>e.activo && e.dni && e.dni===_pinBuf)
-    : null;
+  const empleadoMatch = state.empleados.find(e=>e.activo && e.dni && e.dni===_pinBuf);
 
-  if(_pinNivel==='dueno' && correcto_dueno){
+  if(correcto_dueno){
     state.pinDuenoOk=true;
-    closePinScreen();
-    if(_pinCb) _pinCb();
-  } else if(_pinNivel==='empleado' && empleadoMatch){
     state.pinEmpleadoOk=true;
-    state.empleadoActual=empleadoMatch;
-    closePinScreen();
-    if(_pinCb) _pinCb();
-  } else if(_pinNivel==='empleado' && correcto_dueno){
-    // El dueño también puede entrar como empleado
-    state.pinEmpleadoOk=true;
-    state.pinDuenoOk=true;
     state.empleadoActual=null;
     closePinScreen();
     if(_pinCb) _pinCb();
-  } else {
+  } else if(empleadoMatch){
+    state.pinEmpleadoOk=true;
+    state.empleadoActual=empleadoMatch;
+    if(_pinNivel==='dueno'){
+      // un empleado no puede acceder a zona de dueño
+      _pinBuf=''; updatePinDots();
+      const el=document.getElementById('pin-error');
+      if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
+      return;
+    }
+    closePinScreen();
+    if(_pinCb) _pinCb();
+  } else if(_pinBuf.length >= 6) {
+    // Solo mostrar error si ya tiene suficientes dígitos
     _pinBuf=''; updatePinDots();
     const el=document.getElementById('pin-error');
     if(el){el.textContent='PIN incorrecto. Intentá de nuevo.';setTimeout(()=>{if(el)el.textContent=''},2500);}
@@ -718,7 +719,28 @@ window.guardarCambiosStock=async function(){
 
 function showPinOrden(callback){
   if(state.pinEmpleadoOk||state.pinDuenoOk){ callback(); return; }
-  showPin('empleado', callback);
+  // Intentar con PIN de empleado, pero también aceptar PIN de dueño
+  _pinBuf=''; _pinCb=callback; _pinNivel='empleado';
+  const titulo = '🔒 Ingresá tu DNI o PIN';
+  const sub = 'Empleados: ingresá tu DNI. Dueño: ingresá tu PIN.';
+  const maxDots = 8;
+  document.getElementById('pin-container').innerHTML=`
+  <div class="pin-overlay">
+    <div class="pin-box">
+      <div class="pin-title">${titulo}</div>
+      <div class="pin-sub">${sub}</div>
+      <div class="pin-dots" id="pin-dots-container">
+        ${[...Array(maxDots)].map((_,i)=>`<div class="pin-dot" id="pd${i}"></div>`).join('')}
+      </div>
+      <div class="pin-grid">
+        ${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>`
+          <button class="pin-btn ${n==='⌫'?'del':''}" onclick="pinPress('${n}')">${n}</button>`).join('')}
+      </div>
+      <div class="pin-error" id="pin-error"></div>
+      <button class="btn" style="width:100%;margin-top:12px" onclick="closePinScreen()">Cancelar</button>
+    </div>
+  </div>`;
+  document.addEventListener('keydown', _pinKeyHandler);
 }
 async function avanzarEstado(id){
   const o=state.ordenes.find(x=>x.id===id); if(!o) return;
@@ -1255,6 +1277,10 @@ window.guardarInsumo=async function(){
 function closeModal(e){
   if(e&&e.target!==e.currentTarget) return;
   document.getElementById('modal-container').innerHTML='';
+  state.pinEmpleadoOk=false;
+  state.pinDuenoOk=false;
+  state.empleadoActual=null;
+  render();
 }
 
 loadAll();
