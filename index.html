@@ -1346,6 +1346,15 @@ async function cancelarOrden(id){
   closeModal(); render();
 }
 
+function pdfTxt(str){
+  if(!str) return '';
+  return str
+    .replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u')
+    .replace(/Á/g,'A').replace(/É/g,'E').replace(/Í/g,'I').replace(/Ó/g,'O').replace(/Ú/g,'U')
+    .replace(/ñ/g,'n').replace(/Ñ/g,'N').replace(/ü/g,'u').replace(/Ü/g,'U')
+    .replace(/[^\x00-\x7F]/g,'?');
+}
+
 function exportarOrdenPDF(id){
   const o=state.ordenes.find(x=>x.id===id); if(!o) return;
   const v=getVehiculo(o.vehiculo_id), c=getCliente(o.vehiculo_id);
@@ -1357,30 +1366,24 @@ function exportarOrdenPDF(id){
   let y=M;
 
   // ── BANNER igual que la app ──
-  // Fondo amarillo
   doc.setFillColor(253,216,53);
   doc.rect(0,0,W,40,'F');
-  // Borde negro inferior
   doc.setFillColor(26,26,26);
   doc.rect(0,40,W,2,'F');
 
-  // Nombre grande
   doc.setFontSize(24); doc.setFont('helvetica','bold');
   doc.setTextColor(26,26,26);
   doc.text('GOMERIA J&Y',M,16);
 
-  // 24 HS en rojo
   doc.setFontSize(10); doc.setFont('helvetica','bold');
   doc.setTextColor(192,57,43);
   doc.text('24 HS.  -  SISTEMA DE GESTION',M,24);
 
-  // Local en negro
   doc.setFontSize(8.5); doc.setFont('helvetica','normal');
   doc.setTextColor(50,50,50);
-  doc.text(`${l.dot} ${l.full}`,M,31);
+  doc.text(`Local: ${l.full}`,M,31);
   doc.text('Av. Gaona 3391  /  Av. Gaona 3619  /  Av. Avellaneda 4140',M,37);
 
-  // Info derecha
   doc.setFont('helvetica','bold'); doc.setFontSize(9);
   doc.setTextColor(26,26,26);
   doc.text('Tel: 15 5829-5801',W-M,13,{align:'right'});
@@ -1389,7 +1392,7 @@ function exportarOrdenPDF(id){
   doc.setFontSize(8.5); doc.setFont('helvetica','normal');
   doc.text(`Fecha: ${o.fecha}${o.hora?' - '+o.hora:''}`,W-M,30,{align:'right'});
   doc.setTextColor(192,57,43);
-  doc.text(localInfo(o.local).nombre,W-M,37,{align:'right'});
+  doc.text(l.nombre,W-M,37,{align:'right'});
 
   y=48;
   doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
@@ -1397,12 +1400,12 @@ function exportarOrdenPDF(id){
   doc.text('DATOS DEL CLIENTE',M+2,y+5);
   y+=10;
   doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text(`Cliente: ${c?c.nombre:'-'}`,M,y);
-  doc.text(`Tel: ${c?c.telefono:'-'}`,M+80,y);
+  doc.text(`Cliente: ${pdfTxt(c?c.nombre:'-')}`,M,y);
+  doc.text(`Tel: ${pdfTxt(c?c.telefono:'-')}`,M+80,y);
   y+=6;
-  doc.text(`Vehiculo: ${v?`${v.marca} ${v.modelo}`:'-'}`,M,y);
-  doc.text(`Patente: ${v?v.patente:'-'}`,M+80,y);
-  if(emp){y+=6;doc.text(`Empleado: ${emp.nombre}`,M,y);}
+  doc.text(`Vehiculo: ${pdfTxt(v?`${v.marca} ${v.modelo}`:'-')}`,M,y);
+  doc.text(`Patente: ${pdfTxt(v?v.patente:'-')}`,M+80,y);
+  if(emp){y+=6;doc.text(`Empleado: ${pdfTxt(emp.nombre)}`,M,y);}
 
   y+=10;
   doc.setFillColor(240,240,232); doc.rect(M,y,W-2*M,7,'F');
@@ -1413,32 +1416,23 @@ function exportarOrdenPDF(id){
   (o.servicios||[]).forEach(s=>{
     const desc=o.descuentos&&o.descuentos[s];
     const descStr=desc?(desc.tipo==='pct'?` (-${desc.valor}%)`:` (-$${Number(desc.valor).toLocaleString('es-AR')})`):'' ;
-    doc.text(`- ${s}${descStr}`,M+2,y);y+=5;
+    doc.text(`- ${pdfTxt(s)}${pdfTxt(descStr)}`,M+2,y);y+=5;
   });
-  if(o.notas){y+=2;doc.setFont('helvetica','italic');doc.text(`Notas: ${o.notas}`,M,y);y+=5;doc.setFont('helvetica','normal');}
+  if(o.notas){y+=2;doc.setFont('helvetica','italic');doc.text(`Notas: ${pdfTxt(o.notas)}`,M,y);y+=5;doc.setFont('helvetica','normal');}
 
   y+=5;
   doc.setFillColor(26,26,26); doc.rect(M,y,W-2*M,10,'F');
   doc.setTextColor(253,216,53); doc.setFont('helvetica','bold'); doc.setFontSize(12);
   doc.text(`TOTAL: ${formatMoney(o.total)}`,M+2,y+7);
   doc.setFontSize(9);
-  doc.text(`(${metodoPagoLabel(o.metodo_pago)})`,W-M-2,y+7,{align:'right'});
+  doc.text(`(${pdfTxt(metodoPagoLabel(o.metodo_pago))})`,W-M-2,y+7,{align:'right'});
 
   doc.setTextColor(150,150,150); doc.setFontSize(7); doc.setFont('helvetica','normal');
   doc.text('GOMERIA J&Y - Av. Gaona 3391 / 3619 - Av. Avellaneda 4140 - Tel: 15 5829-5801',W/2,290,{align:'center'});
 
-  // Guardar PDF
+  // Solo guardar el PDF, sin abrir WhatsApp automáticamente
   const nombreArchivo=`orden-${id.slice(-4)}-${c?c.nombre.replace(/\s/g,'-'):'cliente'}.pdf`;
   doc.save(nombreArchivo);
-
-  // Abrir WhatsApp del cliente con aviso
-  const tel=(c?.telefono||'').replace(/\D/g,'');
-  if(tel){
-    setTimeout(()=>{
-      const msg=`Hola ${c?c.nombre:''}! Te enviamos el comprobante de tu orden #${id.slice(-4)} de GOMERÍA J&Y. Por favor adjuntá el PDF que se acaba de descargar. Gracias!`;
-      window.open(`https://wa.me/${tel.startsWith('54')?tel:'54'+tel}?text=${encodeURIComponent(msg)}`, '_blank');
-    }, 1000);
-  }
 }
 
 function enviarWhatsApp(id){
