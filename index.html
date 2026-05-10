@@ -242,9 +242,17 @@ const ESTADOS = ['recibido','en proceso','listo','entregado','cancelado'];
 const ESTADO_LABELS = {recibido:'Recibido','en proceso':'En proceso',listo:'Listo',entregado:'Entregado',cancelado:'Cancelado'};
 
 const SERVICIOS_PREDEFINIDOS = [
-  'Reparación de pinchazo','Cambio de cubierta','Balanceo','Alineación',
-  'Cambio de válvula','Inflado con nitrógeno','Rotación de cubiertas',
-  'Desmontaje y montaje','Revisión general','Reparación de llanta',
+  'Reparacion de pinchazo',
+  'Cambio de cubierta',
+  'Venta de cubiertas',
+  'Balanceo',
+  'Alineacion',
+  'Cambio de valvula',
+  'Inflado con nitrogeno',
+  'Rotacion de cubiertas',
+  'Arme y desarme',
+  'Revision general',
+  'Reparacion de llanta',
 ];
 
 const ERRORES = {
@@ -1121,36 +1129,64 @@ function showNuevaOrden(){
 window.toggleServicio=function(el,nombre){
   const idx=window._serviciosSel.findIndex(x=>x.nombre===nombre);
   if(idx>=0){window._serviciosSel.splice(idx,1);el.classList.remove('selected');}
-  else{window._serviciosSel.push({nombre,descTipo:'',descValor:0});el.classList.add('selected');}
+  else{window._serviciosSel.push({nombre,precio:0,descTipo:'',descValor:0});el.classList.add('selected');}
   renderServiciosSel();
 };
 window.agregarServicioCustom=function(){
   const inp=document.getElementById('m-servicio-custom');
   if(!inp||!inp.value.trim()) return;
-  window._serviciosSel.push({nombre:inp.value.trim(),descTipo:'',descValor:0});
+  window._serviciosSel.push({nombre:inp.value.trim(),precio:0,descTipo:'',descValor:0});
   inp.value=''; renderServiciosSel();
 };
+
+function calcularTotalServicios(){
+  let total=0;
+  window._serviciosSel.forEach(s=>{
+    let precio=s.precio||0;
+    if(s.descTipo==='pct'&&s.descValor>0) precio=precio*(1-s.descValor/100);
+    else if(s.descTipo==='fijo'&&s.descValor>0) precio=Math.max(0,precio-s.descValor);
+    total+=precio;
+  });
+  // Actualizar campo total
+  const totalInput=document.getElementById('m-total');
+  if(totalInput) totalInput.value=Math.round(total)||'';
+}
+
 function renderServiciosSel(){
   const el=document.getElementById('servicios-seleccionados'); if(!el) return;
   el.innerHTML=window._serviciosSel.map((s,i)=>`
-    <div style="background:#f5f5f0;border:1px solid #e0e0d8;border-radius:8px;padding:8px 10px;width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
-      <span style="flex:1;font-size:13px;font-weight:600">${s.nombre}</span>
-      <select style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px;background:#fff" onchange="setDescTipo(${i},this.value)">
-        <option value="" ${s.descTipo===''?'selected':''}>Sin descuento</option>
-        <option value="pct" ${s.descTipo==='pct'?'selected':''}>% Porcentaje</option>
-        <option value="fijo" ${s.descTipo==='fijo'?'selected':''}>$ Monto fijo</option>
-      </select>
-      ${s.descTipo?`<input type="number" min="0" value="${s.descValor||''}" placeholder="${s.descTipo==='pct'?'Ej: 10':'Ej: 500'}" style="width:80px;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px" onchange="setDescValor(${i},this.value)">
-      <span style="font-size:12px;color:#C0392B;font-weight:600">${s.descTipo==='pct'?s.descValor+'%':'$'+Number(s.descValor).toLocaleString('es-AR')} off</span>`:''}
-      <span class="tag-x" onclick="quitarServicio(${i})" style="cursor:pointer;color:#aaa;font-size:16px;margin-left:auto">×</span>
+    <div style="background:#f5f5f0;border:1px solid #e0e0d8;border-radius:8px;padding:8px 10px;width:100%;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <span style="flex:1;font-size:13px;font-weight:600">${s.nombre}</span>
+        <span class="tag-x" onclick="quitarServicio(${i})" style="cursor:pointer;color:#aaa;font-size:16px">×</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:12px;color:#888">$</span>
+          <input type="number" min="0" value="${s.precio||''}" placeholder="Precio" style="width:90px;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px" oninput="setPrecioServicio(${i},this.value)">
+        </div>
+        <select style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px;background:#fff" onchange="setDescTipo(${i},this.value)">
+          <option value="" ${s.descTipo===''?'selected':''}>Sin descuento</option>
+          <option value="pct" ${s.descTipo==='pct'?'selected':''}>% Desc.</option>
+          <option value="fijo" ${s.descTipo==='fijo'?'selected':''}>$ Desc.</option>
+        </select>
+        ${s.descTipo?`<input type="number" min="0" value="${s.descValor||''}" placeholder="${s.descTipo==='pct'?'%':'$'}" style="width:64px;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px" oninput="setDescValor(${i},this.value)">
+        <span style="font-size:12px;color:#C0392B;font-weight:600">${s.descTipo==='pct'?s.descValor+'%':'$'+Number(s.descValor).toLocaleString('es-AR')} off</span>`:''}
+      </div>
     </div>`).join('');
+  calcularTotalServicios();
 }
+window.setPrecioServicio=function(i,val){
+  if(window._serviciosSel[i]) window._serviciosSel[i].precio=parseFloat(val)||0;
+  calcularTotalServicios();
+};
 window.setDescTipo=function(i,tipo){
   if(window._serviciosSel[i]){window._serviciosSel[i].descTipo=tipo;window._serviciosSel[i].descValor=0;}
   renderServiciosSel();
 };
 window.setDescValor=function(i,val){
   if(window._serviciosSel[i]) window._serviciosSel[i].descValor=parseFloat(val)||0;
+  calcularTotalServicios();
 };
 window.quitarServicio=function(i){
   const s=window._serviciosSel[i];
@@ -1172,7 +1208,7 @@ window.toggleNuevoClienteEnOrden=function(){
       <div class="seccion-titulo">Vehículo</div>
       <div class="grid3">
         <div class="form-group"><div class="form-label">Patente *</div><input class="input" id="nc2-pat" placeholder="AB 123 CD"></div>
-        <div class="form-group"><div class="form-label">Marca</div><input class="input" id="nc2-marca" placeholder="Ford"></div>
+        <div class="form-group"><div class="form-label">Marca</div><select class="input" id="nc2-marca"><option value="">Seleccioná marca...</option><option>Renault</option><option>Ford</option><option>Chevrolet</option><option>Fiat</option><option>Nissan</option><option>Honda</option><option>Mercedes</option><option>Audi</option><option>Peugeot</option><option>Toyota</option><option>Kia</option><option>Volkswagen</option><option>Citroen</option><option>Otra</option></select></div>
         <div class="form-group"><div class="form-label">Modelo</div><input class="input" id="nc2-modelo" placeholder="Focus 2020"></div>
       </div>
       <div id="nc2-error"></div>
@@ -1458,8 +1494,8 @@ ${o.notas?`\n📝 *Notas:* ${o.notas}`:''}
 
 Gracias por elegirnos! 🙌`;
 
-  const url=`https://wa.me/${tel.startsWith('54')?tel:'54'+tel}?text=${encodeURIComponent(msg)}`;
-  window.open(url,'_blank');
+  const url=`https://api.whatsapp.com/send?phone=${tel.startsWith('54')?tel:'54'+tel}&text=${encodeURIComponent(msg)}`;
+  window.location.href=url;
 }
 
 // ═══ EDITAR ORDEN (solo dueño) ════════════════════════════════
@@ -2055,7 +2091,7 @@ function showNuevoCliente(){
       <div class="seccion-titulo" style="margin-top:4px">Vehículo (opcional)</div>
       <div class="grid3">
         <div class="form-group"><div class="form-label">Patente</div><input class="input" id="nc-pat" placeholder="AB 123 CD"></div>
-        <div class="form-group"><div class="form-label">Marca</div><input class="input" id="nc-marca" placeholder="Ford"></div>
+        <div class="form-group"><div class="form-label">Marca</div><select class="input" id="nc-marca"><option value="">Seleccioná marca...</option><option>Renault</option><option>Ford</option><option>Chevrolet</option><option>Fiat</option><option>Nissan</option><option>Honda</option><option>Mercedes</option><option>Audi</option><option>Peugeot</option><option>Toyota</option><option>Kia</option><option>Volkswagen</option><option>Citroen</option><option>Otra</option></select></div>
         <div class="form-group"><div class="form-label">Modelo</div><input class="input" id="nc-modelo" placeholder="Focus 2020"></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
@@ -2084,16 +2120,21 @@ window.guardarCliente=async function(){
 
 // ═══ NUEVO INSUMO ═════════════════════════════════════════════
 function showNuevoInsumo(){
-  const localOpts=Object.entries(LOCALES).map(([id,l])=>`<option value="${id}" ${id===state.localActual?'selected':''}>${l.dot} ${l.full}</option>`).join('');
+  const localOpts=`<option value="todos">🌐 Todas las gomerías (misma cantidad)</option>`+Object.entries(LOCALES).map(([id,l])=>`<option value="${id}" ${id===state.localActual?'selected':''}>${l.dot} ${l.full}</option>`).join('');
   document.getElementById('modal-container').innerHTML=`
   <div class="modal-overlay" onclick="closeModal(event)">
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Agregar insumo al stock</div>
       <div id="insumo-error"></div>
-      <div class="form-group"><div class="form-label">Local *</div><select class="select" id="ni-local">${localOpts}</select></div>
+      <div class="form-group"><div class="form-label">Local *</div>
+        <select class="select" id="ni-local" onchange="onLocalInsumoChange()">
+          ${localOpts}
+        </select>
+      </div>
+      <div id="ni-cantidades-extra"></div>
       <div class="form-group"><div class="form-label">Nombre del insumo *</div><input class="input" id="ni-nombre" placeholder="Cubierta 195/65 R15"></div>
       <div class="grid3">
-        <div class="form-group"><div class="form-label">Cantidad</div><input class="input" type="number" id="ni-qty" value="0" min="0"></div>
+        <div class="form-group"><div class="form-label" id="ni-qty-label">Cantidad</div><input class="input" type="number" id="ni-qty" value="0" min="0"></div>
         <div class="form-group"><div class="form-label">Mínimo</div><input class="input" type="number" id="ni-min" value="2" min="0"></div>
         <div class="form-group"><div class="form-label">Unidad</div><input class="input" id="ni-unidad" value="unidad"></div>
       </div>
@@ -2105,10 +2146,27 @@ function showNuevoInsumo(){
     </div>
   </div>`;
 }
+
+window.onLocalInsumoChange=function(){
+  const sel=document.getElementById('ni-local')?.value;
+  const cont=document.getElementById('ni-cantidades-extra');
+  const label=document.getElementById('ni-qty-label');
+  if(sel==='todos'){
+    if(label) label.textContent='Cantidad en cada local';
+    if(cont) cont.innerHTML=Object.entries(LOCALES).map(([id,l])=>`
+      <div class="form-group">
+        <div class="form-label">${l.dot} ${l.nombre} — Cantidad</div>
+        <input class="input" type="number" id="ni-qty-${id}" value="0" min="0">
+      </div>`).join('');
+  } else {
+    if(label) label.textContent='Cantidad';
+    if(cont) cont.innerHTML='';
+  }
+};
+
 window.guardarInsumo=async function(){
   const local=document.getElementById('ni-local')?.value;
   const nombre=document.getElementById('ni-nombre')?.value.trim();
-  const cantidad=parseInt(document.getElementById('ni-qty')?.value)||0;
   const minimo=parseInt(document.getElementById('ni-min')?.value)||0;
   const unidad=document.getElementById('ni-unidad')?.value.trim()||'unidad';
   const costo=parseFloat(document.getElementById('ni-costo')?.value)||0;
@@ -2116,8 +2174,19 @@ window.guardarInsumo=async function(){
   if(!nombre){if(errEl)errEl.innerHTML='<div class="error-msg">El nombre es obligatorio</div>';return;}
   const btn=document.getElementById('btn-guardar-insumo');
   if(btn){btn.disabled=true;btn.textContent='Guardando...';}
-  const {error}=await db.from('stock').insert({nombre,cantidad,minimo,unidad,costo,local});
-  if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+
+  if(local==='todos'){
+    // Insertar en cada local con su cantidad individual
+    for(const [id] of Object.entries(LOCALES)){
+      const qty=parseInt(document.getElementById(`ni-qty-${id}`)?.value)||0;
+      const {error}=await db.from('stock').insert({nombre,cantidad:qty,minimo,unidad,costo,local:id});
+      if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+    }
+  } else {
+    const cantidad=parseInt(document.getElementById('ni-qty')?.value)||0;
+    const {error}=await db.from('stock').insert({nombre,cantidad,minimo,unidad,costo,local});
+    if(error){if(errEl)errEl.innerHTML=`<div class="error-msg">${traducirError(error.message)}</div>`;if(btn){btn.disabled=false;btn.textContent='Guardar';}return;}
+  }
   await loadAll(); closeModal();
 };
 
