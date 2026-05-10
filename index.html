@@ -2131,10 +2131,10 @@ function showNuevoInsumo(){
           ${localOpts}
         </select>
       </div>
-      <div id="ni-cantidades-extra"></div>
       <div class="form-group"><div class="form-label">Nombre del insumo *</div><input class="input" id="ni-nombre" placeholder="Cubierta 195/65 R15"></div>
-      <div class="grid3">
-        <div class="form-group"><div class="form-label" id="ni-qty-label">Cantidad</div><input class="input" type="number" id="ni-qty" value="0" min="0"></div>
+      <div id="ni-cantidades-extra"></div>
+      <div id="ni-qty-wrapper" class="grid3">
+        <div class="form-group"><div class="form-label">Cantidad</div><input class="input" type="number" id="ni-qty" value="0" min="0"></div>
         <div class="form-group"><div class="form-label">Mínimo</div><input class="input" type="number" id="ni-min" value="2" min="0"></div>
         <div class="form-group"><div class="form-label">Unidad</div><input class="input" id="ni-unidad" value="unidad"></div>
       </div>
@@ -2150,16 +2150,16 @@ function showNuevoInsumo(){
 window.onLocalInsumoChange=function(){
   const sel=document.getElementById('ni-local')?.value;
   const cont=document.getElementById('ni-cantidades-extra');
-  const label=document.getElementById('ni-qty-label');
+  const wrapper=document.getElementById('ni-qty-wrapper');
   if(sel==='todos'){
-    if(label) label.textContent='Cantidad en cada local';
+    if(wrapper) wrapper.style.display='none';
     if(cont) cont.innerHTML=Object.entries(LOCALES).map(([id,l])=>`
       <div class="form-group">
         <div class="form-label">${l.dot} ${l.nombre} — Cantidad</div>
         <input class="input" type="number" id="ni-qty-${id}" value="0" min="0">
       </div>`).join('');
   } else {
-    if(label) label.textContent='Cantidad';
+    if(wrapper) wrapper.style.display='';
     if(cont) cont.innerHTML='';
   }
 };
